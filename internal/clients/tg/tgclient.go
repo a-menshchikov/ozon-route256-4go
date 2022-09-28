@@ -31,7 +31,7 @@ func New(tokenGetter TokenGetter) (*Client, error) {
 
 func (c *Client) SendMessage(userID int64, text string) error {
 	message := tgbotapi.NewMessage(userID, text)
-	message.ParseMode = tgbotapi.ModeMarkdownV2
+	message.ParseMode = tgbotapi.ModeHTML
 
 	_, err := c.client.Send(message)
 	if err != nil {

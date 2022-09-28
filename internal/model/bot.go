@@ -12,30 +12,14 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto"
 )
 
-const (
-	addHelp = `Чтобы добавить запись о расходах, отправь команду:
-` + "```" + `
-/add [дата] <сумма> <категория>
-` + "```" + `
-Дата может быть указана в формате *dd\.mm\.yyyy* \(день\.месяц\.год\)\.
-Чтобы задать сегодняшнее число, можно использовать знак *@* в качестве даты, или не указывать дату совсем\.
-Кроме того, в качестве даты можно использовать строку вида *\-Nd*, где N — количество "дней назад" \(1 можно не указывать\)\.
-Например, *\-2d* значит "2 дня назад"\.
-
-Сумма указывается в формате *XX\[\.yy\]*: целого или дробного числа с одним или двумя знаками после запятой \(вместо которой можно использовать точку\)\.`
-	reportHelp = `Для просмотра расходов по категориям выполните одну из команд \(w — расходы за неделю, m — за месяц, y — за год\):
-` + "```" + `
-/report \[N\]w
-/report \[N\]m
-/report \[N\]y
-` + "```" + `
-Если задать положительное число N, будут выведены расходы за N последних недель/месяцев/лет\.`
-)
-
 var (
 	commandRx = regexp.MustCompile(`^/(\w+)\b(.*)$`)
 	addRx     = regexp.MustCompile(`^(|@|-\d+d|\d{2}\.\d{2}\.\d{4})\s*(\d+(?:[.,]\d+)?) (.+)$`)
-	reportRx  = regexp.MustCompile(`^(\d*)([wmy])$`)
+	reportRx  = regexp.MustCompile(`^(\d*)([wmy]?)$`)
+
+	errWrongExpenseDate    = errors.New("не удалось определить дату")
+	errWrongExpenseAmount  = errors.New("не удалось определить сумму")
+	errWrongReportDuration = errors.New("не удалось определить срок формирования отчёта")
 )
 
 type MessageSender interface {
@@ -79,7 +63,7 @@ func (b *Bot) HandleMessage(msg dto.Message) error {
 		response = b.report(args, msg.UserID)
 
 	default:
-		response = "Извини, я не знаю такой команды\\. 🙁\n\n" + addHelp + "\n\n\n" + reportHelp
+		response = sorryMessage
 	}
 
 	return b.sender.SendMessage(msg.UserID, response)
@@ -88,13 +72,13 @@ func (b *Bot) HandleMessage(msg dto.Message) error {
 func (b *Bot) start(userID int64) string {
 	b.storage.Init(userID)
 
-	return "Привет\\! 👋\n\n" + addHelp + "\n\n\n" + reportHelp
+	return helloMessage
 }
 
 func (b *Bot) addExpense(args string, userID int64) string {
 	m := addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
-		return addHelp
+		return "Не удалось определить расход.\n\n" + addHelpMessage
 	}
 
 	date, amount, category, err := parseAddArgs(m[1:])
@@ -103,10 +87,10 @@ func (b *Bot) addExpense(args string, userID int64) string {
 	}
 
 	if err != nil {
-		return "Не удалось добавить расход\\.\nОшибка: " + err.Error() + "\\.\n\n\nДля справки:\n" + addHelp
+		return errorMessage(err, "Не удалось добавить расход.", addHelpMessage)
 	}
 
-	return "Готово\\!"
+	return "Готово!"
 }
 
 func parseAddArgs(args []string) (date time.Time, amount int64, category string, err error) {
@@ -116,7 +100,7 @@ func parseAddArgs(args []string) (date time.Time, amount int64, category string,
 
 	floatAmount, err := strconv.ParseFloat(strings.ReplaceAll(args[1], ",", "."), 64)
 	if err != nil {
-		err = errors.New("не удалось определить сумму")
+		err = errWrongExpenseAmount
 	}
 
 	amount = int64(floatAmount * 100)
@@ -134,7 +118,7 @@ func parseDate(input string) (time.Time, error) {
 	if input[0] == '-' {
 		rate, err := strconv.ParseUint(input[1:len(input)-1], 10, 64)
 		if err != nil {
-			return time.Time{}, errors.New("не удалось определить дату")
+			return time.Time{}, errWrongExpenseDate
 		}
 
 		return time.Now().Add(-time.Duration(rate) * 24 * time.Hour), nil
@@ -142,7 +126,7 @@ func parseDate(input string) (time.Time, error) {
 
 	date, err := time.Parse("02.01.2006", input)
 	if err != nil {
-		return time.Time{}, errors.New("не удалось определить дату")
+		return time.Time{}, errWrongExpenseDate
 	}
 
 	return date, nil
@@ -151,17 +135,17 @@ func parseDate(input string) (time.Time, error) {
 func (b *Bot) report(args string, userID int64) string {
 	m := reportRx.FindStringSubmatch(args)
 	if len(m) == 0 {
-		return reportHelp
+		return reportHelpMessage
 	}
 
 	from, err := parseReportArgs(m[1:])
 	if err != nil {
-		return "Не удалось сформировать отчёт\\.\nОшибка: " + err.Error() + "\\.\n\n\nДля справки:\n" + reportHelp
+		return errorMessage(err, "Не удалось сформировать отчёт.", reportHelpMessage)
 	}
 
 	data := b.storage.List(userID, from)
 	if len(data) == 0 {
-		return "Вы ещё не добавили ни одного расхода\\."
+		return "Вы ещё не добавили ни одного расхода."
 	}
 
 	categories := make([]string, 0, len(data))
@@ -171,10 +155,9 @@ func (b *Bot) report(args string, userID int64) string {
 
 	sort.Strings(categories)
 
-	response := fmt.Sprintf("Ваши расходы с %s:\n", from.Format("02\\.01\\.2006"))
-
+	response := fmt.Sprintf("Расходы с %s:\n", from.Format("02.01.2006"))
 	for _, category := range categories {
-		response += strings.ReplaceAll(fmt.Sprintf("%s: %.2f\n", category, float64(data[category])/100), ".", "\\.")
+		response += fmt.Sprintf("%s: %.2f\n", category, float64(data[category])/100)
 	}
 
 	return response
@@ -186,12 +169,14 @@ func parseReportArgs(args []string) (time.Time, error) {
 	if args[0] != "" {
 		rate, err := strconv.ParseUint(args[0], 10, 64)
 		if err != nil {
-			return time.Time{}, errors.New("не удалось определить срок формирования отчёта")
+			return time.Time{}, errWrongReportDuration
 		}
 		hours *= int(rate)
 	}
 
 	switch args[1] {
+	case "":
+		hours = 24 * 7
 	case "w":
 		hours *= 24 * 7
 	case "m":
@@ -202,7 +187,7 @@ func parseReportArgs(args []string) (time.Time, error) {
 
 	duration, err := time.ParseDuration(fmt.Sprintf("%dh", hours))
 	if err != nil {
-		return time.Time{}, errors.New("не удалось определить срок формирования отчёта")
+		return time.Time{}, errWrongReportDuration
 	}
 
 	return time.Now().Truncate(24 * time.Hour).Add(-duration), nil
