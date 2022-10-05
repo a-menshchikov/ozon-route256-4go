@@ -10,16 +10,12 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
 )
 
-type TokenGetter interface {
-	Token() string
-}
-
 type Client struct {
 	client *tgbotapi.BotAPI
 }
 
-func New(tokenGetter TokenGetter) (*Client, error) {
-	client, err := tgbotapi.NewBotAPI(tokenGetter.Token())
+func New(token string) (*Client, error) {
+	client, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewBotAPI")
 	}

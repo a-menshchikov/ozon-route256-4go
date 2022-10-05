@@ -28,7 +28,7 @@ func NewCommand(name, version string) *cobra.Command {
 				return errors.Wrap(err, "config init failed")
 			}
 
-			tgClient, err := tg.New(cfg)
+			tgClient, err := tg.New(cfg.Token)
 			if err != nil {
 				return errors.Wrap(err, "tg client init failed")
 			}
