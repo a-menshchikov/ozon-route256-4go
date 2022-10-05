@@ -2,15 +2,21 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/tg"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense/inmemory"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cmd/bot"
+)
+
+var (
+	version     string
+	gitRevision string
+	buildTime   string
 )
 
 func main() {
@@ -25,19 +31,23 @@ func main() {
 		cancel()
 	}()
 
-	cfg, err := config.New()
-	if err != nil {
-		log.Fatal("config init failed: ", err)
+	cmd := bot.NewCommand(filepath.Base(os.Args[0]), buildVersion())
+
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func buildVersion() string {
+	builder := strings.Builder{}
+
+	if len(version) == 0 {
+		builder.WriteString(gitRevision)
+	} else {
+		builder.WriteString(fmt.Sprintf("%s (%s)", version, gitRevision))
 	}
 
-	tgClient, err := tg.New(cfg)
-	if err != nil {
-		log.Fatal("tg client init failed: ", err)
-	}
+	builder.WriteString(fmt.Sprintf(" %s", buildTime))
 
-	expenses := inmemory.New()
-
-	bot := model.NewBot(tgClient, expenses)
-
-	tgClient.ListenUpdates(ctx, bot)
+	return builder.String()
 }

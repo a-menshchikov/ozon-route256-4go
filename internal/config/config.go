@@ -7,8 +7,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const configFile = "data/config.yaml"
-
 type Config struct {
 	Token string `yaml:"token"`
 }
@@ -17,10 +15,10 @@ type Service struct {
 	config Config
 }
 
-func New() (*Service, error) {
+func New(configPath string) (*Service, error) {
 	s := &Service{}
 
-	rawYAML, err := os.ReadFile(configFile)
+	rawYAML, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading config file")
 	}

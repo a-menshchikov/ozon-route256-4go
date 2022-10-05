@@ -3,14 +3,28 @@ BINDIR=${CURDIR}/bin
 GOVER=$(shell go version | perl -nle '/(go\d\S+)/; print $$1;')
 MOCKGEN=${BINDIR}/mockgen_${GOVER}
 SMARTIMPORTS=${BINDIR}/smartimports_${GOVER}
-LINTVER=v1.49.0
+LINTVER=v1.50.0
 LINTBIN=${BINDIR}/lint_${GOVER}_${LINTVER}
 PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/bot
 
+ifeq ($(GOOS),)
+	GOOS:=linux
+endif
+ifeq ($(BUILD_VERSION),)
+	BUILD_VERSION:=$(shell git rev-parse --abbrev-ref HEAD)
+endif
+ifeq ($(BUILD_REVISION),)
+	BUILD_REVISION:=$(shell git rev-parse HEAD)
+endif
+
 all: format build test lint
 
+build: TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+build: LDFLAGS += -X main.version=$(BUILD_VERSION)
+build: LDFLAGS += -X main.gitRevision=$(BUILD_REVISION)
+build: LDFLAGS += -X main.buildTime=$(TIME)
 build: bindir
-	go build -o ${BINDIR}/bot ${PACKAGE}
+	GOOS="$(GOOS)" go build -o ${BINDIR}/bot -ldflags "$(LDFLAGS)" ${PACKAGE}
 
 test:
 	go test ./...

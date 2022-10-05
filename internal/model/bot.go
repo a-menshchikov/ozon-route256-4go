@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	commandRx = regexp.MustCompile(`^/(\w+)\b(.*)$`)
-	addRx     = regexp.MustCompile(`^(|@|-\d+d|\d{2}\.\d{2}\.\d{4})\s*(\d+(?:[.,]\d+)?) (.+)$`)
-	reportRx  = regexp.MustCompile(`^(\d*)([wmy]?)$`)
+	addRx    = regexp.MustCompile(`^(|@|-\d+d|\d{2}\.\d{2}\.\d{4})\s*(\d+(?:[.,]\d+)?) (.+)$`)
+	reportRx = regexp.MustCompile(`^(\d*)([wmy]?)$`)
 
 	errWrongExpenseDate    = errors.New("не удалось определить дату")
 	errWrongExpenseAmount  = errors.New("не удалось определить сумму")
@@ -45,21 +44,19 @@ func NewBot(sender MessageSender, storage ExpenseStorage) *Bot {
 }
 
 func (b *Bot) HandleMessage(msg dto.Message) error {
-	m := commandRx.FindStringSubmatch(msg.Text)
-
-	command, args := m[1], m[2]
+	command, args, _ := strings.Cut(msg.Text, " ")
 	args = strings.TrimSpace(args)
 
 	var response string
 
 	switch command {
-	case "start":
+	case "/start":
 		response = b.start(msg.UserID)
 
-	case "add":
+	case "/add":
 		response = b.addExpense(args, msg.UserID)
 
-	case "report":
+	case "/report":
 		response = b.report(args, msg.UserID)
 
 	default:
