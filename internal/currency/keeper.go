@@ -1,7 +1,6 @@
 package currency
 
 import (
-	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
 )
 
@@ -26,7 +25,7 @@ func NewKeeper(cfg config.Currency) *Keeper {
 
 func (k *Keeper) Set(userID int64, currency string) error {
 	if _, ok := k.currencies[currency]; !ok {
-		return errors.New("неизвестная валюта")
+		return ErrUnknownCurrency
 	}
 
 	k.data[userID] = currency

@@ -12,16 +12,13 @@ import (
 
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency"
 	"golang.org/x/text/encoding/charmap"
 )
 
 const (
 	_ratesAPI     = "https://www.cbr.ru/scripts/XML_daily.asp"
 	_ratesTimeout = 3 * time.Second
-)
-
-var (
-	errUnsupportedCurrency = errors.New("указана неизвестная валюта")
 )
 
 type Exchanger struct {
@@ -36,8 +33,8 @@ type Exchanger struct {
 
 func NewCbrExchanger(cfg config.Currency) *Exchanger {
 	rates := make(map[string]int64)
-	for _, currency := range cfg.Available {
-		rates[currency.Code] = 0
+	for _, currConfig := range cfg.Available {
+		rates[currConfig.Code] = 0
 	}
 
 	return &Exchanger{
@@ -47,19 +44,19 @@ func NewCbrExchanger(cfg config.Currency) *Exchanger {
 	}
 }
 
-func (e *Exchanger) ExchangeFromBase(value int64, currency string) (int64, error) {
-	if currency == e.config.Base {
+func (e *Exchanger) ExchangeFromBase(value int64, curr string) (int64, error) {
+	if curr == e.config.Base {
 		return value, nil
 	}
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	if rate, ok := e.rates[currency]; ok {
+	if rate, ok := e.rates[curr]; ok {
 		return value * 10000 / rate, nil
 	}
 
-	return 0, errUnsupportedCurrency
+	return 0, currency.ErrUnknownCurrency
 }
 
 func (e *Exchanger) Ready() bool {
@@ -69,26 +66,26 @@ func (e *Exchanger) Ready() bool {
 	return e.ready
 }
 
-func (e *Exchanger) ExchangeToBase(value int64, currency string) (int64, error) {
-	if currency == e.config.Base {
+func (e *Exchanger) ExchangeToBase(value int64, curr string) (int64, error) {
+	if curr == e.config.Base {
 		return value, nil
 	}
 
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	if rate, ok := e.rates[currency]; ok {
+	if rate, ok := e.rates[curr]; ok {
 		return value * rate / 10000, nil
 	}
 
-	return 0, errUnsupportedCurrency
+	return 0, currency.ErrUnknownCurrency
 }
 
 func (e *Exchanger) ListCurrencies() []string {
 	list := make([]string, len(e.config.Available))
 
-	for k, currency := range e.config.Available {
-		list[k] = currency.Code + " " + currency.Flag
+	for k, curr := range e.config.Available {
+		list[k] = curr.Code + " " + curr.Flag
 	}
 
 	return list
@@ -119,9 +116,9 @@ func (e *Exchanger) refreshRates(ctx context.Context) {
 	}
 
 	e.ready = false
-	for _, currency := range list.Currencies {
-		if _, ok := e.rates[currency.CharCode]; ok {
-			e.rates[currency.CharCode] = int64(currency.Value*10000) / int64(currency.Nominal)
+	for _, curr := range list.Currencies {
+		if _, ok := e.rates[curr.CharCode]; ok {
+			e.rates[curr.CharCode] = int64(curr.Value*10000) / int64(curr.Nominal)
 		}
 	}
 	e.ready = true

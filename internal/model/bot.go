@@ -66,34 +66,34 @@ func (b *Bot) HandleMessage(msg dto.Message) error {
 	command, args, _ := strings.Cut(msg.Text, " ")
 	args = strings.TrimSpace(args)
 
-	var response string
-
 	switch command {
 	case "/start":
-		response = b.start(msg.UserID)
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.start(msg.UserID),
+		)
 
 	case "/add":
-		response = b.addExpense(args, msg.UserID)
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.addExpense(msg.UserID, args),
+		)
 
 	case "/report":
-		response = b.report(args, msg.UserID)
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.report(msg.UserID, args),
+		)
 
 	case "/currency":
-		if args == "" {
-			return b.sender.SendMessageWithInlineKeyboard(
-				msg.UserID,
-				currencyCurrentMessage+b.currencyKeeper.Get(msg.UserID)+"\n\n"+currencyChooseMessage,
-				prepareCurrenciesKeyboard(b.exchanger.ListCurrencies()),
-			)
-		}
-
-		response = b.changeCurrency(msg.UserID, args)
-
-	default:
-		response = sorryMessage
+		return b.sender.SendMessageWithInlineKeyboard(
+			msg.UserID,
+			currencyCurrentMessage+b.currencyKeeper.Get(msg.UserID)+"\n\n"+currencyChooseMessage,
+			prepareCurrenciesKeyboard(b.exchanger.ListCurrencies()),
+		)
 	}
 
-	return b.sender.SendMessage(msg.UserID, response)
+	return b.sender.SendMessage(msg.UserID, sorryMessage)
 }
 
 func (b *Bot) HandleCallbackQuery(query dto.CallbackQuery) error {
@@ -108,7 +108,7 @@ func (b *Bot) start(userID int64) string {
 	return helloMessage
 }
 
-func (b *Bot) addExpense(args string, userID int64) string {
+func (b *Bot) addExpense(userID int64, args string) string {
 	m := _addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return "Не удалось определить расход.\n\n" + addHelpMessage
@@ -136,6 +136,7 @@ func parseAddArgs(args []string) (date time.Time, amount int64, category string,
 	if date, err = parseDate(args[0]); err != nil {
 		return
 	}
+	date = date.UTC()
 
 	floatAmount, err := strconv.ParseFloat(strings.ReplaceAll(args[1], ",", "."), 64)
 	if err != nil {
@@ -160,7 +161,7 @@ func parseDate(input string) (time.Time, error) {
 			return time.Time{}, errWrongExpenseDate
 		}
 
-		return time.Now().Add(-time.Duration(rate) * 24 * time.Hour), nil
+		return time.Now().UTC().Add(-time.Duration(rate) * 24 * time.Hour), nil
 	}
 
 	date, err := time.Parse("02.01.2006", input)
@@ -171,7 +172,7 @@ func parseDate(input string) (time.Time, error) {
 	return date, nil
 }
 
-func (b *Bot) report(args string, userID int64) string {
+func (b *Bot) report(userID int64, args string) string {
 	m := _reportRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return reportHelpMessage
@@ -195,7 +196,7 @@ func (b *Bot) report(args string, userID int64) string {
 	sort.Strings(categories)
 
 	currency := b.currencyKeeper.Get(userID)
-	response := fmt.Sprintf("Расходы с %s (валюта — %s):\n", from.Format("02.01.2006"), currency)
+	response := fmt.Sprintf("Расходы с %s (валюта — %s):\n", from.Local().Format("02.01.2006"), currency)
 	for _, category := range categories {
 		amount, err := b.exchanger.ExchangeFromBase(data[category], currency)
 		if err != nil {
@@ -235,7 +236,9 @@ func parseReportArgs(args []string) (time.Time, error) {
 		return time.Time{}, errWrongReportDuration
 	}
 
-	return time.Now().Truncate(24 * time.Hour).Add(-duration), nil
+	year, month, day := time.Now().Date()
+
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Add(-duration), nil
 }
 
 func (b *Bot) changeCurrency(userID int64, currency string) string {
