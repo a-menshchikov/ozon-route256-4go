@@ -133,7 +133,7 @@ func Test_HandleMessage_AddExpenseCommand(t *testing.T) {
 
 			bot := NewBot(sender, storage)
 
-			sender.EXPECT().SendMessage(testUserID, "Готово!")
+			sender.EXPECT().SendMessage(testUserID, doneMessage)
 			storage.EXPECT().Add(testUserID, tc.want.date, tc.want.amount, tc.want.category)
 
 			err := bot.HandleMessage(dto.Message{

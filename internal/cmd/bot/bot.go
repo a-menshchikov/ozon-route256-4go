@@ -5,7 +5,9 @@ import (
 	"github.com/spf13/cobra"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/tg"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense/inmemory"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency/exchanger"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
 )
 
@@ -33,8 +35,15 @@ func NewCommand(name, version string) *cobra.Command {
 				return errors.Wrap(err, "tg client init failed")
 			}
 
-			expenses := inmemory.New()
-			bot := model.NewBot(tgClient, expenses)
+			cbrExchanger := exchanger.NewCbrExchanger(cfg.Currency)
+			go cbrExchanger.Run(ctx)
+
+			bot := model.NewBot(
+				tgClient,
+				expense.NewInmemoryStorage(),
+				cbrExchanger,
+				currency.NewKeeper(cfg.Currency),
+			)
 
 			tgClient.ListenUpdates(ctx, bot)
 

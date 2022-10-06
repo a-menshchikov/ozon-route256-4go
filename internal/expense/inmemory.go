@@ -1,4 +1,4 @@
-package inmemory
+package expense
 
 import (
 	"time"
@@ -20,7 +20,7 @@ type expenseItem struct {
 	date   time.Time
 }
 
-func New() *Storage {
+func NewInmemoryStorage() *Storage {
 	return &Storage{
 		data: map[int64][]*expensesGroup{},
 	}
@@ -62,7 +62,7 @@ func (s *Storage) Add(userID int64, date time.Time, amount int64, category strin
 }
 
 func newExpense(amount int64, date time.Time) (*expenseItem, error) {
-	if amount <= 0 {
+	if amount < 0 {
 		return nil, errors.New("сумма трат должна быть положительным числом")
 	}
 
