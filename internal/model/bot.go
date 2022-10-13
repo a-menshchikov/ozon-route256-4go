@@ -12,10 +12,11 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto"
 )
 
+const _buttonsPerRow = 4
+
 var (
-	commandRx = regexp.MustCompile(`^/(\w+)\b(.*)$`)
-	addRx     = regexp.MustCompile(`^(|@|-\d+d|\d{2}\.\d{2}\.\d{4})\s*(\d+(?:[.,]\d+)?) (.+)$`)
-	reportRx  = regexp.MustCompile(`^(\d*)([wmy]?)$`)
+	_addRx    = regexp.MustCompile(`^(|@|-\d+d|\d{2}\.\d{2}\.\d{4})\s*(\d+(?:[.,]\d+)?) (.+)$`)
+	_reportRx = regexp.MustCompile(`^(\d*)([wmy]?)$`)
 
 	errWrongExpenseDate    = errors.New("не удалось определить дату")
 	errWrongExpenseAmount  = errors.New("не удалось определить сумму")
@@ -24,6 +25,7 @@ var (
 
 type MessageSender interface {
 	SendMessage(userID int64, text string) error
+	SendMessageWithInlineKeyboard(userID int64, text string, rows [][][]string) error
 }
 
 type ExpenseStorage interface {
@@ -32,41 +34,72 @@ type ExpenseStorage interface {
 	List(userID int64, from time.Time) map[string]int64
 }
 
-type Bot struct {
-	sender  MessageSender
-	storage ExpenseStorage
+type Exchanger interface {
+	Ready() bool
+	ExchangeFromBase(value int64, currency string) (int64, error)
+	ExchangeToBase(value int64, currency string) (int64, error)
+	ListCurrencies() []string
 }
 
-func NewBot(sender MessageSender, storage ExpenseStorage) *Bot {
+type CurrencyKeeper interface {
+	Set(userID int64, currency string) error
+	Get(userID int64) string
+}
+
+type Bot struct {
+	sender         MessageSender
+	storage        ExpenseStorage
+	exchanger      Exchanger
+	currencyKeeper CurrencyKeeper
+}
+
+func NewBot(sender MessageSender, storage ExpenseStorage, exchanger Exchanger, currencyKeeper CurrencyKeeper) *Bot {
 	return &Bot{
-		sender:  sender,
-		storage: storage,
+		sender:         sender,
+		storage:        storage,
+		exchanger:      exchanger,
+		currencyKeeper: currencyKeeper,
 	}
 }
 
 func (b *Bot) HandleMessage(msg dto.Message) error {
-	m := commandRx.FindStringSubmatch(msg.Text)
-
-	command, args := m[1], m[2]
+	command, args, _ := strings.Cut(msg.Text, " ")
 	args = strings.TrimSpace(args)
 
-	var response string
-
 	switch command {
-	case "start":
-		response = b.start(msg.UserID)
+	case "/start":
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.start(msg.UserID),
+		)
 
-	case "add":
-		response = b.addExpense(args, msg.UserID)
+	case "/add":
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.addExpense(msg.UserID, args),
+		)
 
-	case "report":
-		response = b.report(args, msg.UserID)
+	case "/report":
+		return b.sender.SendMessage(
+			msg.UserID,
+			b.report(msg.UserID, args),
+		)
 
-	default:
-		response = sorryMessage
+	case "/currency":
+		return b.sender.SendMessageWithInlineKeyboard(
+			msg.UserID,
+			currencyCurrentMessage+b.currencyKeeper.Get(msg.UserID)+"\n\n"+currencyChooseMessage,
+			prepareCurrenciesKeyboard(b.exchanger.ListCurrencies()),
+		)
 	}
 
-	return b.sender.SendMessage(msg.UserID, response)
+	return b.sender.SendMessage(msg.UserID, sorryMessage)
+}
+
+func (b *Bot) HandleCallbackQuery(query dto.CallbackQuery) error {
+	response := b.changeCurrency(query.UserID, query.Data)
+
+	return b.sender.SendMessage(query.UserID, response)
 }
 
 func (b *Bot) start(userID int64) string {
@@ -75,13 +108,19 @@ func (b *Bot) start(userID int64) string {
 	return helloMessage
 }
 
-func (b *Bot) addExpense(args string, userID int64) string {
-	m := addRx.FindStringSubmatch(args)
+func (b *Bot) addExpense(userID int64, args string) string {
+	m := _addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return "Не удалось определить расход.\n\n" + addHelpMessage
 	}
 
 	date, amount, category, err := parseAddArgs(m[1:])
+
+	if err == nil {
+		currency := b.currencyKeeper.Get(userID)
+		amount, err = b.exchanger.ExchangeToBase(amount, currency)
+	}
+
 	if err == nil {
 		err = b.storage.Add(userID, date, amount, category)
 	}
@@ -90,20 +129,21 @@ func (b *Bot) addExpense(args string, userID int64) string {
 		return errorMessage(err, "Не удалось добавить расход.", addHelpMessage)
 	}
 
-	return "Готово!"
+	return doneMessage
 }
 
 func parseAddArgs(args []string) (date time.Time, amount int64, category string, err error) {
 	if date, err = parseDate(args[0]); err != nil {
 		return
 	}
+	date = date.UTC()
 
 	floatAmount, err := strconv.ParseFloat(strings.ReplaceAll(args[1], ",", "."), 64)
 	if err != nil {
 		err = errWrongExpenseAmount
 	}
 
-	amount = int64(floatAmount * 100)
+	amount = int64(floatAmount * 10000)
 
 	category = strings.TrimSpace(args[2])
 
@@ -121,7 +161,7 @@ func parseDate(input string) (time.Time, error) {
 			return time.Time{}, errWrongExpenseDate
 		}
 
-		return time.Now().Add(-time.Duration(rate) * 24 * time.Hour), nil
+		return time.Now().UTC().Add(-time.Duration(rate) * 24 * time.Hour), nil
 	}
 
 	date, err := time.Parse("02.01.2006", input)
@@ -132,8 +172,8 @@ func parseDate(input string) (time.Time, error) {
 	return date, nil
 }
 
-func (b *Bot) report(args string, userID int64) string {
-	m := reportRx.FindStringSubmatch(args)
+func (b *Bot) report(userID int64, args string) string {
+	m := _reportRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return reportHelpMessage
 	}
@@ -155,9 +195,15 @@ func (b *Bot) report(args string, userID int64) string {
 
 	sort.Strings(categories)
 
-	response := fmt.Sprintf("Расходы с %s:\n", from.Format("02.01.2006"))
+	currency := b.currencyKeeper.Get(userID)
+	response := fmt.Sprintf("Расходы с %s (валюта — %s):\n", from.Local().Format("02.01.2006"), currency)
 	for _, category := range categories {
-		response += fmt.Sprintf("%s: %.2f\n", category, float64(data[category])/100)
+		amount, err := b.exchanger.ExchangeFromBase(data[category], currency)
+		if err != nil {
+			return "Ошибка при формировании отчёта: " + err.Error()
+		}
+
+		response += fmt.Sprintf("%s: %.2f\n", category, float64(amount)/10000)
 	}
 
 	return response
@@ -190,5 +236,37 @@ func parseReportArgs(args []string) (time.Time, error) {
 		return time.Time{}, errWrongReportDuration
 	}
 
-	return time.Now().Truncate(24 * time.Hour).Add(-duration), nil
+	year, month, day := time.Now().Date()
+
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Add(-duration), nil
+}
+
+func (b *Bot) changeCurrency(userID int64, currency string) string {
+	if !b.exchanger.Ready() {
+		return currencyLaterMessage
+	}
+
+	if err := b.currencyKeeper.Set(userID, currency); err != nil {
+		return errorMessage(err, "Не удалось сменить текущую валюту.", currencyHelpMessage)
+	}
+
+	return doneMessage
+}
+
+func prepareCurrenciesKeyboard(currencies []string) [][][]string {
+	var buttons [][]string
+	for _, currency := range currencies {
+		name, flag, ok := strings.Cut(currency, " ")
+		if ok {
+			buttons = append(buttons, []string{flag + " " + name, name})
+		}
+	}
+
+	var keyboard [][][]string
+	for _buttonsPerRow < len(buttons) {
+		buttons, keyboard = buttons[_buttonsPerRow:], append(keyboard, buttons[:_buttonsPerRow:_buttonsPerRow])
+	}
+	keyboard = append(keyboard, buttons)
+
+	return keyboard
 }

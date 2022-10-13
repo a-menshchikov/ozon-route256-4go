@@ -10,16 +10,20 @@ type DateMatcher struct {
 }
 
 func SameDate(date time.Time) DateMatcher {
-	return DateMatcher{date.Truncate(24 * time.Hour)}
+	year, month, day := date.Date()
+
+	return DateMatcher{time.Date(year, month, day, 0, 0, 0, 0, time.UTC)}
 }
 
 func (m DateMatcher) Matches(x interface{}) bool {
-	d, ok := x.(time.Time)
+	date, ok := x.(time.Time)
 	if !ok {
 		return false
 	}
 
-	return d.Truncate(24 * time.Hour).Equal(m.date)
+	year, month, day := date.Date()
+
+	return time.Date(year, month, day, 0, 0, 0, 0, time.UTC).Equal(m.date)
 }
 
 func (m DateMatcher) String() string {

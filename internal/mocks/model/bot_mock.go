@@ -48,6 +48,20 @@ func (mr *MockMessageSenderMockRecorder) SendMessage(userID, text interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessage", reflect.TypeOf((*MockMessageSender)(nil).SendMessage), userID, text)
 }
 
+// SendMessageWithInlineKeyboard mocks base method.
+func (m *MockMessageSender) SendMessageWithInlineKeyboard(userID int64, text string, rows [][][]string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendMessageWithInlineKeyboard", userID, text, rows)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SendMessageWithInlineKeyboard indicates an expected call of SendMessageWithInlineKeyboard.
+func (mr *MockMessageSenderMockRecorder) SendMessageWithInlineKeyboard(userID, text, rows interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMessageWithInlineKeyboard", reflect.TypeOf((*MockMessageSender)(nil).SendMessageWithInlineKeyboard), userID, text, rows)
+}
+
 // MockExpenseStorage is a mock of ExpenseStorage interface.
 type MockExpenseStorage struct {
 	ctrl     *gomock.Controller
@@ -109,4 +123,136 @@ func (m *MockExpenseStorage) List(userID int64, from time.Time) map[string]int64
 func (mr *MockExpenseStorageMockRecorder) List(userID, from interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockExpenseStorage)(nil).List), userID, from)
+}
+
+// MockExchanger is a mock of Exchanger interface.
+type MockExchanger struct {
+	ctrl     *gomock.Controller
+	recorder *MockExchangerMockRecorder
+}
+
+// MockExchangerMockRecorder is the mock recorder for MockExchanger.
+type MockExchangerMockRecorder struct {
+	mock *MockExchanger
+}
+
+// NewMockExchanger creates a new mock instance.
+func NewMockExchanger(ctrl *gomock.Controller) *MockExchanger {
+	mock := &MockExchanger{ctrl: ctrl}
+	mock.recorder = &MockExchangerMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockExchanger) EXPECT() *MockExchangerMockRecorder {
+	return m.recorder
+}
+
+// ExchangeFromBase mocks base method.
+func (m *MockExchanger) ExchangeFromBase(value int64, currency string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExchangeFromBase", value, currency)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExchangeFromBase indicates an expected call of ExchangeFromBase.
+func (mr *MockExchangerMockRecorder) ExchangeFromBase(value, currency interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExchangeFromBase", reflect.TypeOf((*MockExchanger)(nil).ExchangeFromBase), value, currency)
+}
+
+// ExchangeToBase mocks base method.
+func (m *MockExchanger) ExchangeToBase(value int64, currency string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExchangeToBase", value, currency)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExchangeToBase indicates an expected call of ExchangeToBase.
+func (mr *MockExchangerMockRecorder) ExchangeToBase(value, currency interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExchangeToBase", reflect.TypeOf((*MockExchanger)(nil).ExchangeToBase), value, currency)
+}
+
+// ListCurrencies mocks base method.
+func (m *MockExchanger) ListCurrencies() []string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCurrencies")
+	ret0, _ := ret[0].([]string)
+	return ret0
+}
+
+// ListCurrencies indicates an expected call of ListCurrencies.
+func (mr *MockExchangerMockRecorder) ListCurrencies() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCurrencies", reflect.TypeOf((*MockExchanger)(nil).ListCurrencies))
+}
+
+// Ready mocks base method.
+func (m *MockExchanger) Ready() bool {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Ready")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+// Ready indicates an expected call of Ready.
+func (mr *MockExchangerMockRecorder) Ready() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ready", reflect.TypeOf((*MockExchanger)(nil).Ready))
+}
+
+// MockCurrencyKeeper is a mock of CurrencyKeeper interface.
+type MockCurrencyKeeper struct {
+	ctrl     *gomock.Controller
+	recorder *MockCurrencyKeeperMockRecorder
+}
+
+// MockCurrencyKeeperMockRecorder is the mock recorder for MockCurrencyKeeper.
+type MockCurrencyKeeperMockRecorder struct {
+	mock *MockCurrencyKeeper
+}
+
+// NewMockCurrencyKeeper creates a new mock instance.
+func NewMockCurrencyKeeper(ctrl *gomock.Controller) *MockCurrencyKeeper {
+	mock := &MockCurrencyKeeper{ctrl: ctrl}
+	mock.recorder = &MockCurrencyKeeperMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockCurrencyKeeper) EXPECT() *MockCurrencyKeeperMockRecorder {
+	return m.recorder
+}
+
+// Get mocks base method.
+func (m *MockCurrencyKeeper) Get(userID int64) string {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Get", userID)
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+// Get indicates an expected call of Get.
+func (mr *MockCurrencyKeeperMockRecorder) Get(userID interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCurrencyKeeper)(nil).Get), userID)
+}
+
+// Set mocks base method.
+func (m *MockCurrencyKeeper) Set(userID int64, currency string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Set", userID, currency)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Set indicates an expected call of Set.
+func (mr *MockCurrencyKeeperMockRecorder) Set(userID, currency interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockCurrencyKeeper)(nil).Set), userID, currency)
 }

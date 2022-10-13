@@ -2,37 +2,40 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
-const configFile = "data/config.yaml"
-
 type Config struct {
-	Token string `yaml:"token"`
+	Token    string   `yaml:"token"`
+	Currency Currency `yaml:"currency"`
 }
 
-type Service struct {
-	config Config
+type Currency struct {
+	Available       []CurrencyConfig `yaml:"available"`
+	Base            string           `yaml:"base"`
+	RefreshInterval time.Duration    `yaml:"refresh_interval"`
 }
 
-func New() (*Service, error) {
-	s := &Service{}
+type CurrencyConfig struct {
+	Code string `yaml:"code"`
+	Flag string `yaml:"flag"`
+}
 
-	rawYAML, err := os.ReadFile(configFile)
+func New(configPath string) (*Config, error) {
+	c := &Config{}
+
+	rawYAML, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "reading config file")
 	}
 
-	err = yaml.Unmarshal(rawYAML, &s.config)
+	err = yaml.Unmarshal(rawYAML, &c)
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing yaml")
 	}
 
-	return s, nil
-}
-
-func (s *Service) Token() string {
-	return s.config.Token
+	return c, nil
 }
