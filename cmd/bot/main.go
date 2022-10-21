@@ -32,7 +32,6 @@ func main() {
 	}()
 
 	cmd := bot.NewCommand(filepath.Base(os.Args[0]), buildVersion())
-
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		log.Fatal(err)
 	}
