@@ -188,17 +188,17 @@ func (mr *MockExpenseLimitStorageMockRecorder) List(user interface{}) *gomock.Ca
 }
 
 // Set mocks base method.
-func (m *MockExpenseLimitStorage) Set(user *types.User, value int64, currency, category string) error {
+func (m *MockExpenseLimitStorage) Set(user *types.User, total int64, currency, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", user, value, currency, category)
+	ret := m.ctrl.Call(m, "Set", user, total, currency, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MockExpenseLimitStorageMockRecorder) Set(user, value, currency, category interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) Set(user, total, currency, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Set), user, value, currency, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Set), user, total, currency, category)
 }
 
 // Unset mocks base method.
@@ -292,17 +292,17 @@ func (m *MockCurrencyRatesStorage) EXPECT() *MockCurrencyRatesStorageMockRecorde
 }
 
 // Add mocks base method.
-func (m *MockCurrencyRatesStorage) Add(currency string, rate int64, date time.Time) error {
+func (m *MockCurrencyRatesStorage) Add(currency string, date time.Time, rate int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", currency, rate, date)
+	ret := m.ctrl.Call(m, "Add", currency, date, rate)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockCurrencyRatesStorageMockRecorder) Add(currency, rate, date interface{}) *gomock.Call {
+func (mr *MockCurrencyRatesStorageMockRecorder) Add(currency, date, rate interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Add), currency, rate, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Add), currency, date, rate)
 }
 
 // Get mocks base method.

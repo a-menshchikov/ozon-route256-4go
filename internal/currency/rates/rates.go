@@ -111,7 +111,7 @@ func (r *rater) refreshRates(ctx context.Context) {
 
 	r.ready = false
 	for curr, rate := range rates {
-		if err := r.storage.Add(curr, rate, date); err != nil {
+		if err := r.storage.Add(curr, date, rate); err != nil {
 			log.Println("CurrencyRatesStorage.Add failed:", err.Error())
 		}
 	}

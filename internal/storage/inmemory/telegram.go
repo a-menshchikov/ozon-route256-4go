@@ -14,7 +14,8 @@ func (s *inMemoryTelegramUserStorage) Add(tgUserID int64) (*types.User, error) {
 		return nil, errors.New("user already exists")
 	}
 
-	s.data[tgUserID] = &([]types.User{types.User(tgUserID)}[0])
+	user := types.User(tgUserID)
+	s.data[tgUserID] = &user
 
 	return s.data[tgUserID], nil
 }

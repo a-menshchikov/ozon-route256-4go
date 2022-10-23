@@ -22,10 +22,10 @@ func (s *inMemoryExpenseLimitStorage) Get(user *types.User, category string) (ty
 	return types.LimitItem{}, false, nil
 }
 
-func (s *inMemoryExpenseLimitStorage) Set(user *types.User, value int64, currency, category string) error {
+func (s *inMemoryExpenseLimitStorage) Set(user *types.User, total int64, currency, category string) error {
 	item := types.LimitItem{
-		Total:    value,
-		Remains:  value,
+		Total:    total,
+		Remains:  total,
 		Currency: currency,
 	}
 
@@ -39,8 +39,6 @@ func (s *inMemoryExpenseLimitStorage) Set(user *types.User, value int64, currenc
 }
 
 func (s *inMemoryExpenseLimitStorage) Decrease(user *types.User, value int64, category string) (bool, error) {
-	limitReached := false
-
 	if _, ok := s.data[user]; !ok {
 		return true, nil
 	}
@@ -55,14 +53,13 @@ func (s *inMemoryExpenseLimitStorage) Decrease(user *types.User, value int64, ca
 	}
 
 	item.Remains -= value
-	limitReached = item.Remains < 0
-	if limitReached {
+	if item.Remains < 0 {
 		item.Remains = 0
 	}
 
 	s.data[user][category] = item
 
-	return limitReached, nil
+	return item.Remains == 0, nil
 }
 
 func (s *inMemoryExpenseLimitStorage) Unset(user *types.User, category string) error {

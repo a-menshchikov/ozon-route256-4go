@@ -16,6 +16,7 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/inmemory"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/postgresql"
 )
 
 type storageFactory interface {
@@ -37,7 +38,7 @@ func NewCommand(name, version string) *cobra.Command {
 	c := &cobra.Command{
 		Use:           name,
 		Short:         "Financial Assistant bot",
-		Example:       name + " --config=data/config.yaml",
+		Example:       name + " --config=.data/config.yaml",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Version:       version,
@@ -88,6 +89,9 @@ func newStorageFactory(ctx context.Context, storageConfig config.StorageConfig) 
 	switch storageConfig.Driver {
 	case config.InMemoryDriver:
 		return inmemory.NewFactory(), nil
+
+	case config.PostgreSQLDriver:
+		return postgresql.NewFactory(ctx, storageConfig.Dsn, storageConfig.WaitTimeout)
 	}
 
 	return nil, errors.New("unknown storage driver")

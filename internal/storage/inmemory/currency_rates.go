@@ -14,7 +14,7 @@ func (s *inMemoryCurrencyRatesStorage) Get(currency string, _ time.Time) (int64,
 	return rate, found, nil
 }
 
-func (s *inMemoryCurrencyRatesStorage) Add(currency string, rate int64, _ time.Time) error {
+func (s *inMemoryCurrencyRatesStorage) Add(currency string, _ time.Time, rate int64) error {
 	s.data[currency] = rate
 
 	return nil

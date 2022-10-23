@@ -18,7 +18,7 @@ type ExpenseStorage interface {
 
 type ExpenseLimitStorage interface {
 	Get(user *types.User, category string) (types.LimitItem, bool, error)
-	Set(user *types.User, value int64, currency, category string) error
+	Set(user *types.User, total int64, currency, category string) error
 	Decrease(user *types.User, value int64, category string) (bool, error)
 	Unset(user *types.User, category string) error
 	List(user *types.User) (map[string]types.LimitItem, bool, error)
@@ -31,5 +31,5 @@ type CurrencyStorage interface {
 
 type CurrencyRatesStorage interface {
 	Get(currency string, date time.Time) (int64, bool, error)
-	Add(currency string, rate int64, date time.Time) error
+	Add(currency string, date time.Time, rate int64) error
 }

@@ -57,8 +57,8 @@ func Test_rater_Run(t *testing.T) {
 				cfg: defaultCfg,
 				storage: func() storage.CurrencyRatesStorage {
 					m := smocks.NewMockCurrencyRatesStorage(ctrl)
-					m.EXPECT().Add("USD", int64(500000), today).Return(nil)
-					m.EXPECT().Add("EUR", int64(550000), today).Return(nil)
+					m.EXPECT().Add("USD", today, int64(500000)).Return(nil)
+					m.EXPECT().Add("EUR", today, int64(550000)).Return(nil)
 					return m
 				},
 				gateway: func() gateway {
@@ -88,8 +88,8 @@ func Test_rater_Run(t *testing.T) {
 				cfg: defaultCfg,
 				storage: func() storage.CurrencyRatesStorage {
 					m := smocks.NewMockCurrencyRatesStorage(ctrl)
-					m.EXPECT().Add("USD", int64(410000), yesterday).Return(simpleError)
-					m.EXPECT().Add("EUR", int64(460000), yesterday).Return(nil)
+					m.EXPECT().Add("USD", yesterday, int64(410000)).Return(simpleError)
+					m.EXPECT().Add("EUR", yesterday, int64(460000)).Return(nil)
 					return m
 				},
 				gateway: func() gateway {
