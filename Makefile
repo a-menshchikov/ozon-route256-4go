@@ -17,7 +17,7 @@ ifeq ($(BUILD_REVISION),)
 	BUILD_REVISION:=$(shell git rev-parse HEAD)
 endif
 
-all: format build test lint
+all: format lint build test
 
 build: TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 build: LDFLAGS += -X main.version=$(BUILD_VERSION)
@@ -33,12 +33,16 @@ run:
 	go run ${PACKAGE}
 
 generate: install-mockgen
-	${MOCKGEN} -source=internal/model/bot.go -destination=internal/mocks/model/bot_mock.go
+	${MOCKGEN} -source=internal/clients/telegram/tgclient.go -destination=internal/mocks/clients/telegram/tgclient_mock.go
+	${MOCKGEN} -source=internal/currency/rates/cbr/cbr.go -destination=internal/mocks/currency/rates/cbr/cbr_mock.go
+	${MOCKGEN} -source=internal/currency/rates/rates.go -destination=internal/mocks/currency/rates/rates_mock.go
+	${MOCKGEN} -source=internal/model/controller.go -destination=internal/mocks/model/controller_mock.go
+	${MOCKGEN} -source=internal/storage/types.go -destination=internal/mocks/storage/types_mock.go
 
 lint: install-lint
 	${LINTBIN} run
 
-precommit: format build test lint
+precommit: format lint build test
 	echo "OK"
 
 bindir:

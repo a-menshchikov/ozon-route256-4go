@@ -1,0 +1,11 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    ports: [ '5432:5432' ]
+    environment:
+      TZ: 'Europe/Moscow'
+      PGTZ: 'Europe/Moscow'
+      POSTGRES_PASSWORD: 'postgres'
+      POSTGRES_DB: 'bot'
+    volumes:
+      - ./data/.postgresql:/var/lib/postgresql/data

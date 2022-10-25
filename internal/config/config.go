@@ -2,26 +2,15 @@ package config
 
 import (
 	"os"
-	"time"
 
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Token    string   `yaml:"token"`
-	Currency Currency `yaml:"currency"`
-}
-
-type Currency struct {
-	Available       []CurrencyConfig `yaml:"available"`
-	Base            string           `yaml:"base"`
-	RefreshInterval time.Duration    `yaml:"refresh_interval"`
-}
-
-type CurrencyConfig struct {
-	Code string `yaml:"code"`
-	Flag string `yaml:"flag"`
+	Client   ClientConfig   `yaml:"client"`
+	Storage  StorageConfig  `yaml:"storage"`
+	Currency CurrencyConfig `yaml:"currency"`
 }
 
 func New(configPath string) (*Config, error) {
