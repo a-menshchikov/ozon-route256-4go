@@ -2,13 +2,13 @@ package rates
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
+	"go.uber.org/zap"
 )
 
 var (
@@ -28,15 +28,17 @@ type rater struct {
 
 	storage storage.CurrencyRatesStorage
 	gateway gateway
+	logger  *zap.Logger
 }
 
-func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage, g gateway) *rater {
+func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage, g gateway, l *zap.Logger) *rater {
 	return &rater{
 		refreshInterval: currencyCfg.RefreshInterval,
 		baseCurrency:    currencyCfg.Base,
 
 		storage: s,
 		gateway: g,
+		logger:  l,
 	}
 }
 
@@ -102,7 +104,7 @@ func (r *rater) Exchange(value int64, from, to string, date time.Time) (int64, e
 func (r *rater) refreshRates(ctx context.Context) {
 	rates, date, err := r.gateway.FetchRates(ctx)
 	if err != nil {
-		log.Println("rates refresh failed:", err.Error())
+		r.logger.Warn("rates refresh failed", zap.Error(err))
 		return
 	}
 
@@ -112,7 +114,7 @@ func (r *rater) refreshRates(ctx context.Context) {
 	r.ready = false
 	for curr, rate := range rates {
 		if err := r.storage.Add(curr, date, rate); err != nil {
-			log.Println("CurrencyRatesStorage.Add failed:", err.Error())
+			r.logger.Error("CurrencyRatesStorage.Add failed", zap.Error(err))
 		}
 	}
 	r.ready = true

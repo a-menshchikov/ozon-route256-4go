@@ -3,12 +3,12 @@ package postgresql
 import (
 	"context"
 	"database/sql/driver"
-	"log"
 	"time"
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
+	"go.uber.org/zap"
 )
 
 const (
@@ -20,13 +20,13 @@ type factory struct {
 	db  pgxtype.Querier
 }
 
-func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration) (*factory, error) {
+func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logger *zap.Logger) (*factory, error) {
 	pool, err := pgxpool.Connect(ctx, dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := wait(pool, ctx, waitTimeout); err != nil {
+	if err := wait(pool, ctx, waitTimeout, logger); err != nil {
 		pool.Close()
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration) (*fa
 	}, nil
 }
 
-func wait(conn driver.Pinger, ctx context.Context, waitTimeout time.Duration) error {
+func wait(conn driver.Pinger, ctx context.Context, waitTimeout time.Duration, logger *zap.Logger) error {
 	if waitTimeout == 0 {
 		waitTimeout = _defaultWaitTimeout
 	}
@@ -50,7 +50,7 @@ func wait(conn driver.Pinger, ctx context.Context, waitTimeout time.Duration) er
 	ctx, cancel := context.WithTimeout(ctx, waitTimeout)
 	defer cancel()
 
-	if err := ping(ctx, conn); err == nil {
+	if err := ping(ctx, conn, logger); err == nil {
 		return nil
 	}
 
@@ -62,17 +62,17 @@ func wait(conn driver.Pinger, ctx context.Context, waitTimeout time.Duration) er
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			if err := ping(ctx, conn); err == nil {
+			if err := ping(ctx, conn, nil); err == nil {
 				return nil
 			}
 		}
 	}
 }
 
-func ping(ctx context.Context, conn driver.Pinger) error {
+func ping(ctx context.Context, conn driver.Pinger, logger *zap.Logger) error {
 	err := conn.Ping(ctx)
 	if err != nil {
-		log.Println("db wait:", err)
+		logger.Info("db ping", zap.Error(err))
 	}
 
 	return err

@@ -2,13 +2,13 @@ package model
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
+	"go.uber.org/zap"
 )
 
 type Controller interface {
@@ -53,14 +53,16 @@ type controller struct {
 	limiter         limiter
 	currencyManager currencyManager
 	rater           rater
+	logger          *zap.Logger
 }
 
-func NewController(e expenser, l limiter, c currencyManager, r rater) *controller {
+func NewController(e expenser, l limiter, c currencyManager, r rater, logger *zap.Logger) *controller {
 	return &controller{
 		expenser:        e,
 		limiter:         l,
 		currencyManager: c,
 		rater:           r,
+		logger:          logger,
 	}
 }
 
@@ -76,7 +78,7 @@ func (c *controller) ListCurrencies(req request.ListCurrencies) (resp response.L
 
 func (c *controller) SetCurrency(req request.SetCurrency) (resp response.SetCurrency) {
 	if err := c.currencyManager.Set(req.User, req.Code); err != nil {
-		logHandleError("cannot set user currency:", err, req)
+		c.logger.Error("cannot set user currency", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -99,7 +101,7 @@ func (c *controller) ListLimits(req request.ListLimits) (resp response.ListLimit
 
 	limits, err := c.limiter.List(req.User)
 	if err != nil {
-		logHandleError("cannot get user limits:", err, req)
+		c.logger.Error("cannot get user limits", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -111,12 +113,12 @@ func (c *controller) ListLimits(req request.ListLimits) (resp response.ListLimit
 		item := response.LimitItem{Origin: origin}
 
 		if item.Total, err = c.rater.Exchange(origin.Total, origin.Currency, currency, today); err != nil {
-			logHandleError("cannot exchange currency:", err, origin.Currency, currency)
+			c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", origin.Currency), zap.String("to", currency))
 			return
 		}
 
 		if item.Remains, err = c.rater.Exchange(origin.Remains, origin.Currency, currency, today); err != nil {
-			logHandleError("cannot exchange currency:", err, origin.Currency, currency)
+			c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", origin.Currency), zap.String("to", currency))
 			return
 		}
 
@@ -138,13 +140,13 @@ func (c *controller) SetLimit(req request.SetLimit) response.SetLimit {
 	if req.Value == 0 {
 		err := c.limiter.Unset(req.User, req.Category)
 		if err != nil {
-			logHandleError("cannot unset user limit:", err, req)
+			c.logger.Error("cannot unset user limit", zap.Error(err), zap.Object("request", req))
 			return false
 		}
 	} else {
 		err := c.limiter.Set(req.User, req.Value, currency, req.Category)
 		if err != nil {
-			logHandleError("cannot set user limit:", err, req)
+			c.logger.Error("cannot set user limit", zap.Error(err), zap.Object("request", req))
 			return false
 		}
 	}
@@ -164,7 +166,7 @@ func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpens
 	}
 
 	if err := c.expenser.Add(req.User, req.Date, req.Amount, currency, req.Category); err != nil {
-		logHandleError("cannot add expense:", err, req)
+		c.logger.Error("cannot add expense", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -172,7 +174,7 @@ func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpens
 
 	limit, err := c.limiter.Get(req.User, req.Category)
 	if err != nil {
-		logHandleError("cannot get user limit:", err, req)
+		c.logger.Error("cannot get user limit", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -182,13 +184,13 @@ func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpens
 
 	limitRetention, err := c.rater.Exchange(req.Amount, currency, limit.Currency, utils.TruncateToDate(req.Date))
 	if err != nil {
-		logHandleError("cannot exchange currency:", err, currency, limit.Currency)
+		c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", currency), zap.String("to", limit.Currency))
 		return
 	}
 
 	reached, err := c.limiter.Decrease(req.User, limitRetention, req.Category)
 	if err != nil {
-		logHandleError("cannot decrease limit:", err, currency, limit)
+		c.logger.Error("cannot decrease limit", zap.Error(err), zap.String("currency", currency), zap.Object("limit", limit))
 		return
 	}
 
@@ -215,7 +217,7 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 
 	report, err := c.expenser.Report(req.User, req.From)
 	if err != nil {
-		logHandleError("cannot get expenses list:", err, req)
+		c.logger.Error("cannot get expenses list", zap.Error(err), zap.Object("request", req))
 		return resp
 	}
 
@@ -225,7 +227,7 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 		for _, item := range report[category] {
 			amount, err := c.rater.Exchange(item.Amount, item.Currency, resp.Currency, item.Date)
 			if err != nil {
-				logHandleError("cannot exchange currency", err, item.Currency, resp.Currency)
+				c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", item.Currency), zap.String("to", resp.Currency))
 				return resp
 			}
 
@@ -242,13 +244,9 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 func (c *controller) resolveUserCurrency(user *types.User) (string, bool) {
 	currency, err := c.currencyManager.Get(user)
 	if err != nil {
-		logHandleError("cannot get user currency:", err)
+		c.logger.Error("cannot get user currency", zap.Error(err), zap.Int64("user", int64(*user)))
 		return "", false
 	}
 
 	return currency, true
-}
-
-func logHandleError(prefix string, err error, rest ...interface{}) {
-	log.Println(prefix, err, rest)
 }

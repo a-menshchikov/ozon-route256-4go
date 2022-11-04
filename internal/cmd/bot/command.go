@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -17,6 +18,8 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/inmemory"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/postgresql"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type storageFactory interface {
@@ -33,7 +36,11 @@ type client interface {
 }
 
 func NewCommand(name, version string) *cobra.Command {
-	var configPath string
+	var (
+		configPath string
+		logLevel   string
+		logDevel   bool
+	)
 
 	c := &cobra.Command{
 		Use:           name,
@@ -46,17 +53,22 @@ func NewCommand(name, version string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 
+			logger, err := newLogger(logLevel, logDevel)
+			if err != nil {
+				return errors.Wrap(err, "logger init failed")
+			}
+
 			cfg, err := config.New(configPath)
 			if err != nil {
 				return errors.Wrap(err, "config init failed")
 			}
 
-			storageFactory, err := newStorageFactory(ctx, cfg.Storage)
+			storageFactory, err := newStorageFactory(ctx, cfg.Storage, logger)
 			if err != nil {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
-			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), cbr.NewGateway(http.DefaultClient))
+			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), cbr.NewGateway(http.DefaultClient), logger)
 			go rater.Run(ctx)
 
 			finAssist := model.NewController(
@@ -64,9 +76,10 @@ func NewCommand(name, version string) *cobra.Command {
 				limit.NewLimiter(storageFactory.CreateLimitStorage()),
 				currency.NewManager(cfg.Currency, storageFactory.CreateCurrencyStorage()),
 				rater,
+				logger,
 			)
 
-			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, storageFactory.CreateTelegramUserStorage())
+			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, storageFactory.CreateTelegramUserStorage(), logger)
 			if err != nil {
 				return errors.Wrap(err, "telegram client init failed")
 			}
@@ -81,22 +94,49 @@ func NewCommand(name, version string) *cobra.Command {
 	}
 
 	c.PersistentFlags().StringVarP(&configPath, "config", "c", "", "config path")
+	c.PersistentFlags().StringVar(&logLevel, "log-level", zapcore.InfoLevel.String(), "debug | info | warn | error | dpanic | panic | fatal")
+	c.PersistentFlags().BoolVarP(&logDevel, "log-devel", "", false, "use development logging")
 
 	return c
 }
 
-func newStorageFactory(ctx context.Context, storageConfig config.StorageConfig) (storageFactory, error) {
+func newLogger(logLevel string, developerMode bool) (*zap.Logger, error) {
+	var level zapcore.Level
+	err := level.UnmarshalText([]byte(logLevel))
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg zap.Config
+	if developerMode {
+		cfg = zap.NewDevelopmentConfig()
+	} else {
+		cfg = zap.NewProductionConfig()
+		cfg.DisableCaller = true
+		cfg.DisableStacktrace = true
+	}
+	cfg.Level = zap.NewAtomicLevelAt(level)
+
+	logger, err := cfg.Build()
+	if err != nil {
+		return nil, fmt.Errorf("build logger: %w", err)
+	}
+
+	return logger, nil
+}
+
+func newStorageFactory(ctx context.Context, storageConfig config.StorageConfig, logger *zap.Logger) (storageFactory, error) {
 	switch storageConfig.Driver {
 	case config.InMemoryDriver:
 		return inmemory.NewFactory(), nil
 
 	case config.PostgreSQLDriver:
-		return postgresql.NewFactory(ctx, storageConfig.Dsn, storageConfig.WaitTimeout)
+		return postgresql.NewFactory(ctx, storageConfig.Dsn, storageConfig.WaitTimeout, logger)
 	}
 
 	return nil, errors.New("unknown storage driver")
 }
 
-func newTelegramClient(token string, s storage.TelegramUserStorage) (client, error) {
-	return tgclient.NewClient(token, s)
+func newTelegramClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (client, error) {
+	return tgclient.NewClient(token, s, l)
 }

@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 	"strconv"
@@ -18,6 +17,7 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -44,9 +44,10 @@ type client struct {
 	api        api
 	storage    storage.TelegramUserStorage
 	controller model.Controller
+	logger     *zap.Logger
 }
 
-func NewClient(token string, s storage.TelegramUserStorage) (*client, error) {
+func NewClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (*client, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewBotAPI")
@@ -55,6 +56,7 @@ func NewClient(token string, s storage.TelegramUserStorage) (*client, error) {
 	return &client{
 		api:     api,
 		storage: s,
+		logger:  l,
 	}, nil
 }
 
@@ -70,7 +72,7 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = _updateTimeout
 
-	log.Println("listening for messages")
+	c.logger.Info("listening for messages")
 
 	updates := c.api.GetUpdatesChan(u)
 
@@ -90,11 +92,11 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 }
 
 func (c *client) handleMessage(message *tgbotapi.Message) {
-	log.Printf("[%s] message: %s", message.From.UserName, message.Text)
+	c.logger.Debug("tg message", zap.String("username", message.From.UserName), zap.String("text", message.Text))
 
 	user, err := c.resolveUser(message.From)
 	if err != nil {
-		log.Println("cannot resolve user:", err)
+		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(message.From.ID, emergencyMessage)
 		return
 	}
@@ -123,11 +125,11 @@ func (c *client) handleMessage(message *tgbotapi.Message) {
 }
 
 func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
-	log.Printf("[%s] callback: %s", callbackQuery.From.UserName, callbackQuery.Data)
+	c.logger.Debug("tg callback", zap.String("username", callbackQuery.From.UserName), zap.String("data", callbackQuery.Data))
 
 	user, err := c.resolveUser(callbackQuery.From)
 	if err != nil {
-		log.Println("cannot resolve user:", err)
+		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(callbackQuery.From.ID, emergencyMessage)
 		return
 	}
@@ -136,7 +138,7 @@ func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	if ok {
 		callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
 		if _, err := c.api.Request(callback); err != nil {
-			log.Println("error processing callback: ", err)
+			c.logger.Error("callback processing failed", zap.Error(err))
 		}
 	}
 
@@ -380,7 +382,7 @@ func (c *client) sendMessage(chatID int64, text string) {
 
 	_, err := c.api.Send(message)
 	if err != nil {
-		log.Println("cannot send telegram message:", err)
+		c.logger.Error("cannot send telegram message", zap.Error(err))
 	}
 }
 
@@ -393,7 +395,7 @@ func (c *client) sendMessageWithInlineKeyboard(chatID int64, text string, rowsDa
 		var row []tgbotapi.InlineKeyboardButton
 		for j, button := range rowData {
 			if len(button) != 2 {
-				log.Println(fmt.Errorf("invalid keyboard button (row %d, button %d)", i, j))
+				c.logger.Error(fmt.Sprintf("invalid keyboard button (row %d, button %d)", i, j))
 			}
 
 			row = append(row, tgbotapi.NewInlineKeyboardButtonData(button[0], button[1]))
@@ -406,7 +408,7 @@ func (c *client) sendMessageWithInlineKeyboard(chatID int64, text string, rowsDa
 
 	_, err := c.api.Send(message)
 	if err != nil {
-		log.Println("cannot send telegram message (with inline keyboard):", err)
+		c.logger.Error("cannot send telegram message (with inline keyboard)", zap.Error(err))
 	}
 }
 

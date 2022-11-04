@@ -1,13 +1,12 @@
 package limit
 
 import (
-	"reflect"
 	"testing"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/storage"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
@@ -16,366 +15,285 @@ var (
 	simpleError = errors.New("error")
 )
 
-func Test_limiter_Get(t *testing.T) {
+type mocksInitializer struct {
+	storage func(*mocks.MockExpenseLimitStorage)
+}
+
+func setupLimiter(t *testing.T, i mocksInitializer) *limiter {
 	ctrl := gomock.NewController(t)
 
-	type fields struct {
-		storage func() storage.ExpenseLimitStorage
+	storageMock := mocks.NewMockExpenseLimitStorage(ctrl)
+	if i.storage != nil {
+		i.storage(storageMock)
 	}
-	type args struct {
-		category string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    types.LimitItem
-		wantErr bool
-	}{
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Get(testUser, "taxi").Return(types.LimitItem{}, false, simpleError)
-					return m
-				},
+
+	return NewLimiter(storageMock)
+}
+
+func Test_limiter_Get(t *testing.T) {
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Get(testUser, "taxi").Return(types.LimitItem{}, false, simpleError)
 			},
-			args: args{
-				category: "taxi",
-			},
-			want:    types.LimitItem{},
-			wantErr: true,
-		},
-		{
-			name: "limit not found",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Get(testUser, "").Return(types.LimitItem{}, false, nil)
-					return m
-				},
-			},
-			args: args{
-				category: "",
-			},
-			want:    types.LimitItem{},
-			wantErr: false,
-		},
-		{
-			name: "found",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Get(testUser, "coffee").Return(types.LimitItem{
-						Total:    1000000,
-						Remains:  150000,
-						Currency: "USD",
-					}, true, nil)
-					return m
-				},
-			},
-			args: args{
-				category: "coffee",
-			},
-			want: types.LimitItem{
-				Total:    1000000,
-				Remains:  150000,
-				Currency: "USD",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := NewLimiter(tt.fields.storage())
-			item, err := l.Get(testUser, tt.args.category)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(item, tt.want) {
-				t.Errorf("Get() item = %v, want %v", item, tt.want)
-			}
 		})
-	}
+
+		// ACT
+		item, err := l.Get(testUser, "taxi")
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, item)
+	})
+
+	t.Run("limit not found", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Get(testUser, "").Return(types.LimitItem{}, false, nil)
+			},
+		})
+
+		// ACT
+		item, err := l.Get(testUser, "")
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Empty(t, item)
+	})
+
+	t.Run("found", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Get(testUser, "coffee").Return(types.LimitItem{
+					Total:    1000000,
+					Remains:  150000,
+					Currency: "USD",
+				}, true, nil)
+			},
+		})
+
+		// ACT
+		item, err := l.Get(testUser, "coffee")
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Equal(t, types.LimitItem{
+			Total:    1000000,
+			Remains:  150000,
+			Currency: "USD",
+		}, item)
+	})
 }
 
 func Test_limiter_Set(t *testing.T) {
-	ctrl := gomock.NewController(t)
+	t.Run("negative limit", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{})
 
-	type fields struct {
-		storage func() storage.ExpenseLimitStorage
-	}
-	type args struct {
-		limit    int64
-		currency string
-		category string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "negative limit",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					return nil
-				},
+		// ACT
+		err := l.Set(
+			testUser,
+			int64(-10000), // limit
+			"RUB",         // currency
+			"",            // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Set(testUser, int64(1000000), "RUB", "coffee").Return(simpleError)
 			},
-			args: args{
-				limit:    -10000,
-				currency: "RUB",
-				category: "",
-			},
-			wantErr: true,
-		},
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Set(testUser, int64(1000000), "RUB", "coffee").Return(simpleError)
-					return m
-				},
-			},
-			args: args{
-				limit:    1000000,
-				currency: "RUB",
-				category: "coffee",
-			},
-			wantErr: true,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Set(testUser, int64(1200000), "RUB", "coffee").Return(nil)
-					return m
-				},
-			},
-			args: args{
-				limit:    1200000,
-				currency: "RUB",
-				category: "coffee",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := NewLimiter(tt.fields.storage())
-			if err := l.Set(testUser, tt.args.limit, tt.args.currency, tt.args.category); (err != nil) != tt.wantErr {
-				t.Errorf("Set() error = %v, wantErr %v", err, tt.wantErr)
-			}
 		})
-	}
+
+		// ACT
+		err := l.Set(
+			testUser,
+			int64(1000000), // limit
+			"RUB",          // currency
+			"coffee",       // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Set(testUser, int64(1200000), "RUB", "coffee").Return(nil)
+			},
+		})
+
+		// ACT
+		err := l.Set(
+			testUser,
+			int64(1200000), // limit
+			"RUB",          // currency
+			"coffee",       // category
+		)
+
+		// ASSERT
+		assert.NoError(t, err)
+	})
 }
 
 func Test_limiter_Decrease(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	type fields struct {
-		storage func() storage.ExpenseLimitStorage
-	}
-	type args struct {
-		value    int64
-		category string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    bool
-		wantErr bool
-	}{
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Decrease(testUser, int64(100000), "taxi").Return(false, simpleError)
-					return m
-				},
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Decrease(testUser, int64(100000), "taxi").Return(false, simpleError)
 			},
-			args: args{
-				value:    100000,
-				category: "taxi",
-			},
-			want:    false,
-			wantErr: true,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Decrease(testUser, int64(200000), "coffee").Return(true, nil)
-					return m
-				},
-			},
-			args: args{
-				value:    200000,
-				category: "coffee",
-			},
-			want:    true,
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := NewLimiter(tt.fields.storage())
-			ok, err := l.Decrease(testUser, tt.args.value, tt.args.category)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Decrease() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if ok != tt.want {
-				t.Errorf("Decrease() ok = %v, want %v", ok, tt.want)
-			}
 		})
-	}
+
+		// ACT
+		ok, err := l.Decrease(
+			testUser,
+			int64(100000), // value
+			"taxi",        // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Decrease(testUser, int64(200000), "coffee").Return(true, nil)
+			},
+		})
+
+		// ACT
+		ok, err := l.Decrease(
+			testUser,
+			int64(200000), // value
+			"coffee",      // category
+		)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.True(t, ok)
+	})
 }
 
 func Test_limiter_Unset(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	type fields struct {
-		storage func() storage.ExpenseLimitStorage
-	}
-	type args struct {
-		category string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Unset(testUser, "").Return(simpleError)
-					return m
-				},
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Unset(testUser, "").Return(simpleError)
 			},
-			args: args{
-				category: "",
-			},
-			wantErr: true,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().Unset(testUser, "taxi").Return(nil)
-					return m
-				},
-			},
-			args: args{
-				category: "taxi",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := NewLimiter(tt.fields.storage())
-			if err := l.Unset(testUser, tt.args.category); (err != nil) != tt.wantErr {
-				t.Errorf("Unset() error = %v, wantErr %v", err, tt.wantErr)
-			}
 		})
-	}
+
+		// ACT
+		err := l.Unset(
+			testUser,
+			"", // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().Unset(testUser, "taxi").Return(nil)
+			},
+		})
+
+		// ACT
+		err := l.Unset(
+			testUser,
+			"taxi", // category
+		)
+
+		// ASSERT
+		assert.NoError(t, err)
+	})
 }
 
 func Test_limiter_List(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	type fields struct {
-		storage func() storage.ExpenseLimitStorage
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    map[string]types.LimitItem
-		wantErr bool
-	}{
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().List(testUser).Return(nil, false, simpleError)
-					return m
-				},
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().List(testUser).Return(nil, false, simpleError)
 			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "not found",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().List(testUser).Return(nil, false, nil)
-					return m
-				},
-			},
-			want:    nil,
-			wantErr: false,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseLimitStorage {
-					m := mocks.NewMockExpenseLimitStorage(ctrl)
-					m.EXPECT().List(testUser).Return(map[string]types.LimitItem{
-						"taxi": {
-							Total:    15000000,
-							Remains:  6000000,
-							Currency: "RUB",
-						},
-						"": {
-							Total:    1000000,
-							Remains:  600000,
-							Currency: "EUR",
-						},
-					}, true, nil)
-					return m
-				},
-			},
-			want: map[string]types.LimitItem{
-				"taxi": {
-					Total:    15000000,
-					Remains:  6000000,
-					Currency: "RUB",
-				},
-				"": {
-					Total:    1000000,
-					Remains:  600000,
-					Currency: "EUR",
-				},
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := NewLimiter(tt.fields.storage())
-			list, err := l.List(testUser)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("List() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(list, tt.want) {
-				t.Errorf("List() list = %v, want %v", list, tt.want)
-			}
 		})
-	}
+
+		// ACT
+		list, err := l.List(testUser)
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, list)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().List(testUser).Return(nil, false, nil)
+			},
+		})
+
+		// ACT
+		list, err := l.List(testUser)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Empty(t, list)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		l := setupLimiter(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseLimitStorage) {
+				m.EXPECT().List(testUser).Return(map[string]types.LimitItem{
+					"taxi": {
+						Total:    15000000,
+						Remains:  6000000,
+						Currency: "RUB",
+					},
+					"": {
+						Total:    1000000,
+						Remains:  600000,
+						Currency: "EUR",
+					},
+				}, true, nil)
+			},
+		})
+
+		// ACT
+		list, err := l.List(testUser)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]types.LimitItem{
+			"taxi": {
+				Total:    15000000,
+				Remains:  6000000,
+				Currency: "RUB",
+			},
+			"": {
+				Total:    1000000,
+				Remains:  600000,
+				Currency: "EUR",
+			},
+		}, list)
+	})
 }

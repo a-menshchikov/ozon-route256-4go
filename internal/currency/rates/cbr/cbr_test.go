@@ -12,6 +12,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/currency/rates/cbr"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 	"golang.org/x/text/encoding/charmap"
@@ -26,63 +27,80 @@ var (
 	simpleError = errors.New("error")
 )
 
-func Test_gateway_FetchRates(t *testing.T) {
+type mocksInitializer struct {
+	client func(*mocks.MockhttpClient)
+}
+
+func setupGateway(t *testing.T, i mocksInitializer) *gateway {
 	ctrl := gomock.NewController(t)
 
-	tests := []struct {
-		name        string
-		client      func() httpClient
-		initializer func(g *gateway)
-		wantRates   map[string]int64
-		wantDate    time.Time
-		wantErr     bool
-	}{
-		{
-			name: "invalid url",
-			client: func() httpClient {
-				return nil
-			},
-			initializer: func(g *gateway) {
-				g.url = string(rune(0x7f))
-			},
-			wantRates: nil,
-			wantDate:  time.Time{},
-			wantErr:   true,
-		},
-		{
-			name: "client error",
-			client: func() httpClient {
-				m := mocks.NewMockhttpClient(ctrl)
+	clientMock := mocks.NewMockhttpClient(ctrl)
+	if i.client != nil {
+		i.client(clientMock)
+	}
+
+	return NewGateway(clientMock)
+}
+
+func Test_gateway_FetchRates(t *testing.T) {
+	t.Run("invalid url", func(t *testing.T) {
+		// ARRANGE
+		g := setupGateway(t, mocksInitializer{})
+		g.url = string(rune(0x7f))
+
+		// ACT
+		rates, date, err := g.FetchRates(context.Background())
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, rates)
+		assert.Empty(t, date)
+	})
+
+	t.Run("client error", func(t *testing.T) {
+		// ARRANGE
+		g := setupGateway(t, mocksInitializer{
+			client: func(m *mocks.MockhttpClient) {
 				var req = reflect.TypeOf((**http.Request)(nil)).Elem()
 				m.EXPECT().Do(gomock.AssignableToTypeOf(req)).Return(nil, simpleError)
-				return m
 			},
-			wantRates: nil,
-			wantDate:  time.Time{},
-			wantErr:   true,
-		},
-		{
-			name: "decode error",
-			client: func() httpClient {
-				m := mocks.NewMockhttpClient(ctrl)
+		})
 
+		// ACT
+		rates, date, err := g.FetchRates(context.Background())
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, rates)
+		assert.Empty(t, date)
+	})
+
+	t.Run("decode error", func(t *testing.T) {
+		// ARRANGE
+		g := setupGateway(t, mocksInitializer{
+			client: func(m *mocks.MockhttpClient) {
 				xml, _ := charmap.Windows1251.NewEncoder().String(brokenXml)
 				w := httptest.NewRecorder()
 				_, _ = io.WriteString(w, xml)
 
 				var req = reflect.TypeOf((**http.Request)(nil)).Elem()
 				m.EXPECT().Do(gomock.AssignableToTypeOf(req)).Return(w.Result(), nil)
-				return m
 			},
-			wantRates: nil,
-			wantDate:  time.Time{},
-			wantErr:   true,
-		},
-		{
-			name: "invalid date",
-			client: func() httpClient {
-				m := mocks.NewMockhttpClient(ctrl)
+		})
 
+		// ACT
+		rates, date, err := g.FetchRates(context.Background())
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, rates)
+		assert.Empty(t, date)
+	})
+
+	t.Run("invalid date", func(t *testing.T) {
+		// ARRANGE
+		g := setupGateway(t, mocksInitializer{
+			client: func(m *mocks.MockhttpClient) {
 				modifiedXml := strings.Replace(validXml, `Date="21.10.2022"`, `Date="10.21.2022"`, 1)
 				xml, _ := charmap.Windows1251.NewEncoder().String(modifiedXml)
 				w := httptest.NewRecorder()
@@ -90,51 +108,41 @@ func Test_gateway_FetchRates(t *testing.T) {
 
 				var req = reflect.TypeOf((**http.Request)(nil)).Elem()
 				m.EXPECT().Do(gomock.AssignableToTypeOf(req)).Return(w.Result(), nil)
-				return m
 			},
-			wantRates: nil,
-			wantDate:  time.Time{},
-			wantErr:   true,
-		},
-		{
-			name: "success",
-			client: func() httpClient {
-				m := mocks.NewMockhttpClient(ctrl)
+		})
 
+		// ACT
+		rates, date, err := g.FetchRates(context.Background())
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, rates)
+		assert.Empty(t, date)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		g := setupGateway(t, mocksInitializer{
+			client: func(m *mocks.MockhttpClient) {
 				xml, _ := charmap.Windows1251.NewEncoder().String(validXml)
 				w := httptest.NewRecorder()
 				_, _ = io.WriteString(w, xml)
 
 				var req = reflect.TypeOf((**http.Request)(nil)).Elem()
 				m.EXPECT().Do(gomock.AssignableToTypeOf(req)).Return(w.Result(), nil)
-				return m
 			},
-			wantRates: map[string]int64{
-				"USD": 611958,
-				"EUR": 598378,
-				"CNY": 83732,
-			},
-			wantDate: utils.TruncateToDate(time.Date(2022, 10, 21, 0, 0, 0, 0, time.UTC)),
-			wantErr:  false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			g := NewGateway(tt.client())
-			if tt.initializer != nil {
-				tt.initializer(g)
-			}
-			rates, date, err := g.FetchRates(context.Background())
-			if (err != nil) != tt.wantErr {
-				t.Errorf("FetchRates() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(rates, tt.wantRates) {
-				t.Errorf("FetchRates() rates = %v, want %v", rates, tt.wantRates)
-			}
-			if !reflect.DeepEqual(date, tt.wantDate) {
-				t.Errorf("FetchRates() date = %v, want %v", date, tt.wantDate)
-			}
 		})
-	}
+
+		// ACT
+		rates, date, err := g.FetchRates(context.Background())
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int64{
+			"USD": 611958,
+			"EUR": 598378,
+			"CNY": 83732,
+		}, rates)
+		assert.Equal(t, utils.TruncateToDate(time.Date(2022, 10, 21, 0, 0, 0, 0, time.UTC)), date)
+	})
 }
