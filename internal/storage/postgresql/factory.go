@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"go.uber.org/zap"
 )
@@ -35,6 +36,8 @@ func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logg
 		<-ctx.Done()
 		pool.Close()
 	}()
+
+	prometheus.MustRegister(newExporter(pool, pool.Config().ConnConfig.Database))
 
 	return &factory{
 		ctx: ctx,

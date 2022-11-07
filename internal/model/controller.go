@@ -37,7 +37,7 @@ type limiter interface {
 }
 
 type rater interface {
-	Run(ctx context.Context)
+	Run(ctx context.Context) error
 	Ready() bool
 	Exchange(value int64, from, to string, date time.Time) (int64, error)
 }

@@ -323,9 +323,11 @@ func (mr *MockraterMockRecorder) Ready() *gomock.Call {
 }
 
 // Run mocks base method.
-func (m *Mockrater) Run(ctx context.Context) {
+func (m *Mockrater) Run(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Run", ctx)
+	ret := m.ctrl.Call(m, "Run", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Run indicates an expected call of Run.

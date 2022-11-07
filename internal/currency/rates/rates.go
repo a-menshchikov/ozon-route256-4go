@@ -42,18 +42,20 @@ func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage,
 	}
 }
 
-func (r *rater) Run(ctx context.Context) {
+func (r *rater) Run(ctx context.Context) error {
 	r.refreshRates(ctx)
 	ticker := time.NewTicker(r.refreshInterval)
 
 	select {
 	case <-ctx.Done():
 		ticker.Stop()
-		return
+		break
 
 	case <-ticker.C:
 		r.refreshRates(ctx)
 	}
+
+	return nil
 }
 
 func (r *rater) Ready() bool {

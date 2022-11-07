@@ -1,3 +1,5 @@
+.PHONY: all build test run generate lint precommit bindir format install-mockgen install-lint install-smartimports logs metrics tracing
+
 CURDIR=$(shell pwd)
 BINDIR=${CURDIR}/bin
 GOVER=$(shell go version | perl -nle '/(go\d\S+)/; print $$1;')
@@ -31,6 +33,9 @@ test:
 
 run:
 	go run ${PACKAGE}
+
+prod: build
+	bin/bot -c data/config.yaml 2>&1 | tee data/.logs/log.txt
 
 generate: install-mockgen
 	${MOCKGEN} -source=internal/clients/telegram/tgclient.go -destination=internal/mocks/clients/telegram/tgclient_mock.go
@@ -66,5 +71,19 @@ install-smartimports: bindir
 		(GOBIN=${BINDIR} go install github.com/pav5000/smartimports/cmd/smartimports@latest && \
 		mv ${BINDIR}/smartimports ${SMARTIMPORTS})
 
-docker-run:
-	sudo docker compose up
+logs:
+	mkdir -p data/.logs
+	mkdir -p data/.elasticsearch
+	touch data/.logs/log.txt
+	touch data/.logs/offsets.yaml
+	sudo chmod -R 777 data/.logs
+	sudo chown -R ${UID}:${GID} data/.elasticsearch
+	docker compose up graylog filed
+
+metrics:
+	mkdir -p data/.grafana
+	sudo chmod -R 777 data/.grafana
+	docker compose up prometheus grafana
+
+tracing:
+	docker compose up jaeger

@@ -81,7 +81,7 @@ func Test_rater_Run(t *testing.T) {
 		}()
 
 		// ACT
-		r.Run(ctx)
+		_ = r.Run(ctx)
 
 		// ASSERT
 		assert.True(t, r.Ready(), "Rater not ready after Run")
@@ -111,7 +111,7 @@ func Test_rater_Run(t *testing.T) {
 		}()
 
 		// ACT
-		r.Run(ctx)
+		_ = r.Run(ctx)
 
 		// ASSERT
 		assert.True(t, r.Ready())

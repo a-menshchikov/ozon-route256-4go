@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
@@ -83,16 +84,21 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 
 		case update := <-updates:
 			if update.Message != nil {
-				c.handleMessage(update.Message)
+				span, spCtx := opentracing.StartSpanFromContext(ctx, "message")
+				c.handleMessage(spCtx, update.Message)
+				span.Finish()
 			} else if update.CallbackQuery != nil {
-				c.handleCallback(update.CallbackQuery)
+				span, spCtx := opentracing.StartSpanFromContext(ctx, "callback")
+				c.handleCallback(spCtx, update.CallbackQuery)
+				span.Finish()
 			}
 		}
 	}
 }
 
-func (c *client) handleMessage(message *tgbotapi.Message) {
+func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	c.logger.Debug("tg message", zap.String("username", message.From.UserName), zap.String("text", message.Text))
+	start := time.Now()
 
 	user, err := c.resolveUser(message.From)
 	if err != nil {
@@ -104,28 +110,42 @@ func (c *client) handleMessage(message *tgbotapi.Message) {
 	command := message.Command()
 	text := unknownCommandMessage
 
+	span := opentracing.SpanFromContext(ctx)
+	defer func() {
+		span.SetTag("command", command)
+
+		_commandResponseTime.WithLabelValues(command).Observe(time.Since(start).Seconds())
+		_commandCount.WithLabelValues(command).Inc()
+	}()
+
 	if command == "currency" {
-		text, keyboard := c.handleCurrency(user)
+		text, keyboard := c.handleCurrency(ctx, user)
 		c.sendMessageWithInlineKeyboard(message.From.ID, text, keyboard)
 		return
 	}
 
-	handler, ok := map[string]func(*types.User, string) string{
-		"start":  func(*types.User, string) string { return helloMessage },
+	handler, ok := map[string]func(context.Context, *types.User, string) string{
+		"start":  func(context.Context, *types.User, string) string { return helloMessage },
 		"limit":  c.handleLimit,
 		"add":    c.handleAdd,
 		"report": c.handleReport,
 	}[command]
 
 	if ok {
-		text = handler(user, strings.TrimSpace(message.CommandArguments()))
+		args := strings.TrimSpace(message.CommandArguments())
+		span.SetTag("args", args)
+		text = handler(ctx, user, args)
+	} else {
+		command = "UNKNOWN"
 	}
 
 	c.sendMessage(message.From.ID, text)
 }
 
-func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
+func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.CallbackQuery) {
 	c.logger.Debug("tg callback", zap.String("username", callbackQuery.From.UserName), zap.String("data", callbackQuery.Data))
+	span, _ := opentracing.StartSpanFromContext(ctx, "set-currency")
+	defer span.Finish()
 
 	user, err := c.resolveUser(callbackQuery.From)
 	if err != nil {
@@ -133,6 +153,12 @@ func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 		c.sendMessage(callbackQuery.From.ID, emergencyMessage)
 		return
 	}
+
+	start := time.Now()
+	defer func() {
+		_commandResponseTime.WithLabelValues("set-currency").Observe(time.Since(start).Seconds())
+		_commandCount.WithLabelValues("set-currency").Inc()
+	}()
 
 	text, ok := c.handleCurrencyCallback(user, callbackQuery.Data)
 	if ok {
@@ -145,7 +171,10 @@ func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
 	c.sendMessage(callbackQuery.From.ID, text)
 }
 
-func (c *client) handleCurrency(user *types.User) (string, [][][]string) {
+func (c *client) handleCurrency(ctx context.Context, user *types.User) (string, [][][]string) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "list currencies")
+	defer span.Finish()
+
 	resp := c.controller.ListCurrencies(request.ListCurrencies{
 		User: user,
 	})
@@ -164,12 +193,18 @@ func (c *client) handleCurrencyCallback(user *types.User, currency string) (stri
 	return errorMessage(nil, "Не удалось сменить текущую валюту.", currencyHelpMessage), false
 }
 
-func (c *client) handleLimit(user *types.User, args string) string {
+func (c *client) handleLimit(ctx context.Context, user *types.User, args string) string {
 	if args == "" {
+		span, _ := opentracing.StartSpanFromContext(ctx, "show limits")
+		defer span.Finish()
+
 		return renderLimits(c.controller.ListLimits(request.ListLimits{
 			User: user,
 		}))
 	}
+
+	span, _ := opentracing.StartSpanFromContext(ctx, "set limit")
+	defer span.Finish()
 
 	limitStr, category, ok := strings.Cut(args, " ")
 	if !ok {
@@ -240,7 +275,10 @@ func renderLimitRow(item response.LimitItem, currency string) (row string) {
 	return
 }
 
-func (c *client) handleAdd(user *types.User, args string) string {
+func (c *client) handleAdd(ctx context.Context, user *types.User, args string) string {
+	span, _ := opentracing.StartSpanFromContext(ctx, "add-expense")
+	defer span.Finish()
+
 	m := _addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return errorMessage(nil, "Не удалось добавить расход.", addHelpMessage)
@@ -314,7 +352,10 @@ func parseDate(input string) (time.Time, error) {
 	return date, nil
 }
 
-func (c *client) handleReport(user *types.User, args string) string {
+func (c *client) handleReport(ctx context.Context, user *types.User, args string) string {
+	span, _ := opentracing.StartSpanFromContext(ctx, "report")
+	defer span.Finish()
+
 	var (
 		from time.Time
 		err  error
