@@ -5,16 +5,19 @@ import (
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type pgExpenseLimitStorage struct {
-	ctx context.Context
-	db  pgxtype.Querier
+	db pgxtype.Querier
 }
 
-func (s *pgExpenseLimitStorage) Get(user *types.User, category string) (types.LimitItem, bool, error) {
+func (s *pgExpenseLimitStorage) Get(ctx context.Context, user *types.User, category string) (types.LimitItem, bool, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseLimitStorage.Get")
+	defer span.Finish()
+
 	var (
 		total    int64
 		remains  int64
@@ -22,7 +25,7 @@ func (s *pgExpenseLimitStorage) Get(user *types.User, category string) (types.Li
 	)
 
 	err := s.db.QueryRow(
-		s.ctx,
+		ctx,
 		`select total,
                 remains,
                 currency_code
@@ -47,9 +50,12 @@ func (s *pgExpenseLimitStorage) Get(user *types.User, category string) (types.Li
 	}, true, nil
 }
 
-func (s *pgExpenseLimitStorage) Set(user *types.User, total int64, currency, category string) error {
+func (s *pgExpenseLimitStorage) Set(ctx context.Context, user *types.User, total int64, currency, category string) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseLimitStorage.Set")
+	defer span.Finish()
+
 	_, err := s.db.Exec(
-		s.ctx,
+		ctx,
 		`insert into limits (user_id, category, total, remains, currency_code)
 		 values ($1, $4, $2, $2, $3)
 		   on conflict (user_id, category)
@@ -68,11 +74,14 @@ func (s *pgExpenseLimitStorage) Set(user *types.User, total int64, currency, cat
 	return nil
 }
 
-func (s *pgExpenseLimitStorage) Decrease(user *types.User, value int64, category string) (bool, error) {
+func (s *pgExpenseLimitStorage) Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseLimitStorage.Decrease")
+	defer span.Finish()
+
 	var limitReached bool
 
 	err := s.db.QueryRow(
-		s.ctx,
+		ctx,
 		`with "limit" as (
            select user_id, category
            from limits
@@ -97,9 +106,12 @@ func (s *pgExpenseLimitStorage) Decrease(user *types.User, value int64, category
 	return limitReached, nil
 }
 
-func (s *pgExpenseLimitStorage) Unset(user *types.User, category string) error {
+func (s *pgExpenseLimitStorage) Unset(ctx context.Context, user *types.User, category string) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseLimitStorage.Unset")
+	defer span.Finish()
+
 	_, err := s.db.Exec(
-		s.ctx,
+		ctx,
 		`delete from limits
          where user_id = $1
            and category = $2`,
@@ -113,9 +125,12 @@ func (s *pgExpenseLimitStorage) Unset(user *types.User, category string) error {
 	return nil
 }
 
-func (s *pgExpenseLimitStorage) List(user *types.User) (map[string]types.LimitItem, bool, error) {
+func (s *pgExpenseLimitStorage) List(ctx context.Context, user *types.User) (map[string]types.LimitItem, bool, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseLimitStorage.List")
+	defer span.Finish()
+
 	rows, err := s.db.Query(
-		s.ctx,
+		ctx,
 		`select category,
                 total,
                 remains,

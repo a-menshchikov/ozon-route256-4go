@@ -1,6 +1,8 @@
 package currency
 
 import (
+	"context"
+	"reflect"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -12,6 +14,8 @@ import (
 )
 
 var (
+	ctxInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 	testUser    = &([]types.User{types.User(int64(123))}[0])
 	simpleError = errors.New("error")
 	defaultCfg  = config.CurrencyConfig{
@@ -30,7 +34,7 @@ var (
 )
 
 type mocksInitializer struct {
-	storage func(*mocks.MockCurrencyStorage)
+	storage func(m *mocks.MockCurrencyStorage)
 }
 
 func setupManager(t *testing.T, cfg config.CurrencyConfig, i mocksInitializer) *manager {
@@ -49,12 +53,12 @@ func Test_manager_Get(t *testing.T) {
 		// ARRANGE
 		m := setupManager(t, defaultCfg, mocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
-				m.EXPECT().Get(testUser).Return("", false, simpleError)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("", false, simpleError)
 			},
 		})
 
 		// ACT
-		currency, err := m.Get(testUser)
+		currency, err := m.Get(context.Background(), testUser)
 
 		// ASSERT
 		assert.Error(t, err)
@@ -65,12 +69,12 @@ func Test_manager_Get(t *testing.T) {
 		// ARRANGE
 		m := setupManager(t, defaultCfg, mocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
-				m.EXPECT().Get(testUser).Return("EUR", true, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("EUR", true, nil)
 			},
 		})
 
 		// ACT
-		currency, err := m.Get(testUser)
+		currency, err := m.Get(context.Background(), testUser)
 
 		// ASSERT
 		assert.NoError(t, err)
@@ -81,12 +85,12 @@ func Test_manager_Get(t *testing.T) {
 		// ARRANGE
 		m := setupManager(t, defaultCfg, mocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
-				m.EXPECT().Get(testUser).Return("", false, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("", false, nil)
 			},
 		})
 
 		// ACT
-		currency, err := m.Get(testUser)
+		currency, err := m.Get(context.Background(), testUser)
 
 		// ASSERT
 		assert.NoError(t, err)
@@ -100,7 +104,7 @@ func Test_manager_Set(t *testing.T) {
 		m := setupManager(t, defaultCfg, mocksInitializer{})
 
 		// ACT
-		err := m.Set(testUser, "RUB")
+		err := m.Set(context.Background(), testUser, "RUB")
 
 		// ASSERT
 		assert.Error(t, err)
@@ -110,12 +114,12 @@ func Test_manager_Set(t *testing.T) {
 		// ARRANGE
 		m := setupManager(t, defaultCfg, mocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
-				m.EXPECT().Set(testUser, "EUR").Return(simpleError)
+				m.EXPECT().Set(gomock.AssignableToTypeOf(ctxInterface), testUser, "EUR").Return(simpleError)
 			},
 		})
 
 		// ACT
-		err := m.Set(testUser, "EUR")
+		err := m.Set(context.Background(), testUser, "EUR")
 
 		// ASSERT
 		assert.Error(t, err)
@@ -125,12 +129,12 @@ func Test_manager_Set(t *testing.T) {
 		// ARRANGE
 		m := setupManager(t, defaultCfg, mocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
-				m.EXPECT().Set(testUser, "USD").Return(nil)
+				m.EXPECT().Set(gomock.AssignableToTypeOf(ctxInterface), testUser, "USD").Return(nil)
 			},
 		})
 
 		// ACT
-		err := m.Set(testUser, "USD")
+		err := m.Set(context.Background(), testUser, "USD")
 
 		// ASSERT
 		assert.NoError(t, err)

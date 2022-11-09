@@ -1,6 +1,9 @@
 package currency
 
 import (
+	"context"
+
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
@@ -34,8 +37,13 @@ func NewManager(currencyCfg config.CurrencyConfig, s storage.CurrencyStorage) *m
 	}
 }
 
-func (m *manager) Get(user *types.User) (string, error) {
-	if currency, found, err := m.storage.Get(user); err != nil {
+func (m *manager) Get(ctx context.Context, user *types.User) (string, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "currencyManager.Get", opentracing.Tags{
+		"user": *user,
+	})
+	defer span.Finish()
+
+	if currency, found, err := m.storage.Get(ctx, user); err != nil {
 		return "", errors.Wrap(err, "CurrencyStorage.Get")
 	} else if found {
 		return currency, nil
@@ -44,13 +52,19 @@ func (m *manager) Get(user *types.User) (string, error) {
 	return m.defaultCurrency, nil
 }
 
-func (m *manager) Set(user *types.User, curr string) error {
+func (m *manager) Set(ctx context.Context, user *types.User, curr string) error {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "currencyManager.Set", opentracing.Tags{
+		"user":     *user,
+		"currency": curr,
+	})
+	defer span.Finish()
+
 	for _, c := range m.currencies {
 		if c.code != curr {
 			continue
 		}
 
-		return m.storage.Set(user, curr)
+		return m.storage.Set(ctx, user, curr)
 	}
 
 	return errors.New("указана неизвестная валюта")

@@ -17,8 +17,7 @@ const (
 )
 
 type factory struct {
-	ctx context.Context
-	db  pgxtype.Querier
+	db pgxtype.Querier
 }
 
 func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logger *zap.Logger) (*factory, error) {
@@ -40,8 +39,7 @@ func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logg
 	prometheus.MustRegister(newExporter(pool, pool.Config().ConnConfig.Database))
 
 	return &factory{
-		ctx: ctx,
-		db:  pool,
+		db: pool,
 	}, nil
 }
 
@@ -83,35 +81,30 @@ func ping(ctx context.Context, conn driver.Pinger, logger *zap.Logger) error {
 
 func (f *factory) CreateTelegramUserStorage() storage.TelegramUserStorage {
 	return &pgTelegramUserStorage{
-		ctx: f.ctx,
-		db:  f.db,
+		db: f.db,
 	}
 }
 
 func (f *factory) CreateExpenseStorage() storage.ExpenseStorage {
 	return &pgExpenseStorage{
-		ctx: f.ctx,
-		db:  f.db,
+		db: f.db,
 	}
 }
 
 func (f *factory) CreateCurrencyStorage() storage.CurrencyStorage {
 	return &pgCurrencyStorage{
-		ctx: f.ctx,
-		db:  f.db,
+		db: f.db,
 	}
 }
 
 func (f *factory) CreateRatesStorage() storage.CurrencyRatesStorage {
 	return &pgCurrencyRatesStorage{
-		ctx: f.ctx,
-		db:  f.db,
+		db: f.db,
 	}
 }
 
 func (f *factory) CreateLimitStorage() storage.ExpenseLimitStorage {
 	return &pgExpenseLimitStorage{
-		ctx: f.ctx,
-		db:  f.db,
+		db: f.db,
 	}
 }

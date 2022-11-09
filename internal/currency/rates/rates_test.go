@@ -17,6 +17,8 @@ import (
 )
 
 var (
+	ctxInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 	today       = utils.TruncateToDate(time.Now())
 	yesterday   = today.Add(-24 * time.Hour)
 	simpleError = errors.New("error")
@@ -37,8 +39,8 @@ var (
 )
 
 type mocksInitializer struct {
-	storage func(*smocks.MockCurrencyRatesStorage)
-	gateway func(*rmocks.Mockgateway)
+	storage func(m *smocks.MockCurrencyRatesStorage)
+	gateway func(m *rmocks.Mockgateway)
 }
 
 func setupRater(t *testing.T, cfg config.CurrencyConfig, i mocksInitializer) *rater {
@@ -60,25 +62,24 @@ func setupRater(t *testing.T, cfg config.CurrencyConfig, i mocksInitializer) *ra
 func Test_rater_Run(t *testing.T) {
 	t.Run("refresh once", func(t *testing.T) {
 		// ARRANGE
-		r := setupRater(t, defaultCfg, mocksInitializer{
-			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Add("USD", today, int64(500000)).Return(nil)
-				m.EXPECT().Add("EUR", today, int64(550000)).Return(nil)
-			},
-			gateway: func(m *rmocks.Mockgateway) {
-				var ctx = reflect.TypeOf((*context.Context)(nil)).Elem()
-				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctx)).Return(map[string]int64{
-					"USD": 500000,
-					"EUR": 550000,
-				}, today, nil)
-			},
-		})
-
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			<-time.After(time.Millisecond)
 			cancel()
 		}()
+
+		r := setupRater(t, defaultCfg, mocksInitializer{
+			storage: func(m *smocks.MockCurrencyRatesStorage) {
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), "USD", today, int64(500000)).Return(nil)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), "EUR", today, int64(550000)).Return(nil)
+			},
+			gateway: func(m *rmocks.Mockgateway) {
+				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctxInterface)).Return(map[string]int64{
+					"USD": 500000,
+					"EUR": 550000,
+				}, today, nil)
+			},
+		})
 
 		// ACT
 		_ = r.Run(ctx)
@@ -89,26 +90,25 @@ func Test_rater_Run(t *testing.T) {
 
 	t.Run("refresh twice with errors", func(t *testing.T) {
 		// ARRANGE
-		r := setupRater(t, defaultCfg, mocksInitializer{
-			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Add("USD", yesterday, int64(410000)).Return(simpleError)
-				m.EXPECT().Add("EUR", yesterday, int64(460000)).Return(nil)
-			},
-			gateway: func(m *rmocks.Mockgateway) {
-				var ctx = reflect.TypeOf((*context.Context)(nil)).Elem()
-				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctx)).Return(nil, time.Time{}, simpleError)
-				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctx)).Return(map[string]int64{
-					"USD": 410000,
-					"EUR": 460000,
-				}, yesterday, nil)
-			},
-		})
-
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
 			<-time.After(150 * time.Millisecond)
 			cancel()
 		}()
+
+		r := setupRater(t, defaultCfg, mocksInitializer{
+			storage: func(m *smocks.MockCurrencyRatesStorage) {
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), "USD", yesterday, int64(410000)).Return(simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), "EUR", yesterday, int64(460000)).Return(nil)
+			},
+			gateway: func(m *rmocks.Mockgateway) {
+				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctxInterface)).Return(nil, time.Time{}, simpleError)
+				m.EXPECT().FetchRates(gomock.AssignableToTypeOf(ctxInterface)).Return(map[string]int64{
+					"USD": 410000,
+					"EUR": 460000,
+				}, yesterday, nil)
+			},
+		})
 
 		// ACT
 		_ = r.Run(ctx)
@@ -149,6 +149,7 @@ func Test_rater_Exchange(t *testing.T) {
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(10000), // value
 			"EUR",        // from
 			"EUR",        // to
@@ -164,12 +165,13 @@ func Test_rater_Exchange(t *testing.T) {
 		// ARRANGE
 		r := setupRater(t, defaultCfg, mocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Get("RUB", today).Return(int64(0), false, simpleError)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "RUB", today).Return(int64(0), false, simpleError)
 			},
 		})
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(1000000), // value
 			"RUB",          // from
 			"USD",          // to
@@ -185,12 +187,13 @@ func Test_rater_Exchange(t *testing.T) {
 		// ARRANGE
 		r := setupRater(t, defaultCfg, mocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Get("RUB", today).Return(int64(0), false, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "RUB", today).Return(int64(0), false, nil)
 			},
 		})
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(1000000), // value
 			"RUB",          // from
 			"USD",          // to
@@ -206,13 +209,14 @@ func Test_rater_Exchange(t *testing.T) {
 		// ARRANGE
 		r := setupRater(t, defaultCfg, mocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Get("RUB", today).Return(int64(200), true, nil)
-				m.EXPECT().Get("EUR", today).Return(int64(0), false, simpleError)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "RUB", today).Return(int64(200), true, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "EUR", today).Return(int64(0), false, simpleError)
 			},
 		})
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(1000000), // value
 			"RUB",          // from
 			"EUR",          // to
@@ -228,13 +232,14 @@ func Test_rater_Exchange(t *testing.T) {
 		// ARRANGE
 		r := setupRater(t, defaultCfg, mocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Get("RUB", today).Return(int64(200), true, nil)
-				m.EXPECT().Get("EUR", today).Return(int64(0), false, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "RUB", today).Return(int64(200), true, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "EUR", today).Return(int64(0), false, nil)
 			},
 		})
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(1000000), // value
 			"RUB",          // from
 			"EUR",          // to
@@ -250,12 +255,13 @@ func Test_rater_Exchange(t *testing.T) {
 		// ARRANGE
 		r := setupRater(t, defaultCfg, mocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
-				m.EXPECT().Get("RUB", today).Return(int64(200), true, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), "RUB", today).Return(int64(200), true, nil)
 			},
 		})
 
 		// ACT
 		value, err := r.Exchange(
+			context.Background(),
 			int64(1500000), // value
 			"RUB",          // from
 			"USD",          // to

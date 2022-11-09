@@ -1,6 +1,8 @@
 package expense
 
 import (
+	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 )
 
 var (
+	ctxInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 	testUser    = &([]types.User{types.User(int64(123))}[0])
 	today       = utils.TruncateToDate(time.Now())
 	tomorrow    = today.Add(24 * time.Hour)
@@ -20,7 +24,7 @@ var (
 )
 
 type mocksInitializer struct {
-	storage func(*mocks.MockExpenseStorage)
+	storage func(m *mocks.MockExpenseStorage)
 }
 
 func setupExpenser(t *testing.T, i mocksInitializer) *expenser {
@@ -41,6 +45,7 @@ func Test_expenser_Add(t *testing.T) {
 
 		// ACT
 		err := e.Add(
+			context.Background(),
 			testUser,
 			today,         // date
 			int64(-10000), // amount
@@ -58,6 +63,7 @@ func Test_expenser_Add(t *testing.T) {
 
 		// ACT
 		err := e.Add(
+			context.Background(),
 			testUser,
 			tomorrow,     // date
 			int64(10000), // amount
@@ -73,7 +79,7 @@ func Test_expenser_Add(t *testing.T) {
 		// ARRANGE
 		e := setupExpenser(t, mocksInitializer{
 			storage: func(m *mocks.MockExpenseStorage) {
-				m.EXPECT().Add(testUser, types.ExpenseItem{
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testUser, types.ExpenseItem{
 					Date:     today,
 					Amount:   20000,
 					Currency: "RUB",
@@ -83,6 +89,7 @@ func Test_expenser_Add(t *testing.T) {
 
 		// ACT
 		err := e.Add(
+			context.Background(),
 			testUser,
 			today,        // date
 			int64(20000), // amount
@@ -98,7 +105,7 @@ func Test_expenser_Add(t *testing.T) {
 		// ARRANGE
 		e := setupExpenser(t, mocksInitializer{
 			storage: func(m *mocks.MockExpenseStorage) {
-				m.EXPECT().Add(testUser, types.ExpenseItem{
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testUser, types.ExpenseItem{
 					Date:     today,
 					Amount:   150000,
 					Currency: "RUB",
@@ -108,6 +115,7 @@ func Test_expenser_Add(t *testing.T) {
 
 		// ACT
 		err := e.Add(
+			context.Background(),
 			testUser,
 			today,         // date
 			int64(150000), // amount
@@ -125,12 +133,12 @@ func Test_expenser_Report(t *testing.T) {
 		// ARRANGE
 		e := setupExpenser(t, mocksInitializer{
 			storage: func(m *mocks.MockExpenseStorage) {
-				m.EXPECT().List(testUser, today).Return(nil, simpleError)
+				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser, today).Return(nil, simpleError)
 			},
 		})
 
 		// ACT
-		data, err := e.Report(testUser, today)
+		data, err := e.Report(context.Background(), testUser, today)
 
 		// ASSERT
 		assert.Error(t, err)
@@ -141,7 +149,7 @@ func Test_expenser_Report(t *testing.T) {
 		// ARRANGE
 		e := setupExpenser(t, mocksInitializer{
 			storage: func(m *mocks.MockExpenseStorage) {
-				m.EXPECT().List(testUser, today).Return(map[string][]types.ExpenseItem{
+				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser, today).Return(map[string][]types.ExpenseItem{
 					"taxi": {
 						{
 							Date:     today,
@@ -166,7 +174,7 @@ func Test_expenser_Report(t *testing.T) {
 		})
 
 		// ACT
-		data, err := e.Report(testUser, today)
+		data, err := e.Report(context.Background(), testUser, today)
 
 		// ASSERT
 		assert.NoError(t, err)

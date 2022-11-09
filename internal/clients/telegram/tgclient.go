@@ -84,23 +84,21 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 
 		case update := <-updates:
 			if update.Message != nil {
-				span, spCtx := opentracing.StartSpanFromContext(ctx, "message")
-				c.handleMessage(spCtx, update.Message)
-				span.Finish()
+				c.handleMessage(ctx, update.Message)
 			} else if update.CallbackQuery != nil {
-				span, spCtx := opentracing.StartSpanFromContext(ctx, "callback")
-				c.handleCallback(spCtx, update.CallbackQuery)
-				span.Finish()
+				c.handleCallback(ctx, update.CallbackQuery)
 			}
 		}
 	}
 }
 
 func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
-	c.logger.Debug("tg message", zap.String("username", message.From.UserName), zap.String("text", message.Text))
 	start := time.Now()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "message")
 
-	user, err := c.resolveUser(message.From)
+	c.logger.Debug("tg message", zap.String("username", message.From.UserName), zap.String("text", message.Text))
+
+	user, err := c.resolveUser(ctx, message.From)
 	if err != nil {
 		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(message.From.ID, emergencyMessage)
@@ -110,9 +108,9 @@ func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	command := message.Command()
 	text := unknownCommandMessage
 
-	span := opentracing.SpanFromContext(ctx)
 	defer func() {
 		span.SetTag("command", command)
+		span.Finish()
 
 		_commandResponseTime.WithLabelValues(command).Observe(time.Since(start).Seconds())
 		_commandCount.WithLabelValues(command).Inc()
@@ -143,11 +141,12 @@ func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 }
 
 func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.CallbackQuery) {
-	c.logger.Debug("tg callback", zap.String("username", callbackQuery.From.UserName), zap.String("data", callbackQuery.Data))
-	span, _ := opentracing.StartSpanFromContext(ctx, "set-currency")
+	span, ctx := opentracing.StartSpanFromContext(ctx, "callback", opentracing.Tags{"command": "set-currency"})
 	defer span.Finish()
 
-	user, err := c.resolveUser(callbackQuery.From)
+	c.logger.Debug("tg callback", zap.String("username", callbackQuery.From.UserName), zap.String("data", callbackQuery.Data))
+
+	user, err := c.resolveUser(ctx, callbackQuery.From)
 	if err != nil {
 		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(callbackQuery.From.ID, emergencyMessage)
@@ -160,7 +159,7 @@ func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.Cal
 		_commandCount.WithLabelValues("set-currency").Inc()
 	}()
 
-	text, ok := c.handleCurrencyCallback(user, callbackQuery.Data)
+	text, ok := c.handleCurrencyCallback(ctx, user, callbackQuery.Data)
 	if ok {
 		callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
 		if _, err := c.api.Request(callback); err != nil {
@@ -172,18 +171,15 @@ func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.Cal
 }
 
 func (c *client) handleCurrency(ctx context.Context, user *types.User) (string, [][][]string) {
-	span, _ := opentracing.StartSpanFromContext(ctx, "list currencies")
-	defer span.Finish()
-
-	resp := c.controller.ListCurrencies(request.ListCurrencies{
+	resp := c.controller.ListCurrencies(ctx, request.ListCurrencies{
 		User: user,
 	})
 
 	return currencyCurrentMessage + resp.Current + "\n\n" + currencyChooseMessage, prepareCurrenciesKeyboard(resp.List)
 }
 
-func (c *client) handleCurrencyCallback(user *types.User, currency string) (string, bool) {
-	if c.controller.SetCurrency(request.SetCurrency{
+func (c *client) handleCurrencyCallback(ctx context.Context, user *types.User, currency string) (string, bool) {
+	if c.controller.SetCurrency(ctx, request.SetCurrency{
 		User: user,
 		Code: currency,
 	}) {
@@ -195,16 +191,10 @@ func (c *client) handleCurrencyCallback(user *types.User, currency string) (stri
 
 func (c *client) handleLimit(ctx context.Context, user *types.User, args string) string {
 	if args == "" {
-		span, _ := opentracing.StartSpanFromContext(ctx, "show limits")
-		defer span.Finish()
-
-		return renderLimits(c.controller.ListLimits(request.ListLimits{
+		return renderLimits(c.controller.ListLimits(ctx, request.ListLimits{
 			User: user,
 		}))
 	}
-
-	span, _ := opentracing.StartSpanFromContext(ctx, "set limit")
-	defer span.Finish()
 
 	limitStr, category, ok := strings.Cut(args, " ")
 	if !ok {
@@ -212,7 +202,7 @@ func (c *client) handleLimit(ctx context.Context, user *types.User, args string)
 	}
 
 	limit, err := strconv.ParseInt(limitStr, 10, 64)
-	if err == nil && c.controller.SetLimit(request.SetLimit{
+	if err == nil && c.controller.SetLimit(ctx, request.SetLimit{
 		User:     user,
 		Value:    limit * 10000,
 		Category: strings.TrimSpace(category),
@@ -276,9 +266,6 @@ func renderLimitRow(item response.LimitItem, currency string) (row string) {
 }
 
 func (c *client) handleAdd(ctx context.Context, user *types.User, args string) string {
-	span, _ := opentracing.StartSpanFromContext(ctx, "add-expense")
-	defer span.Finish()
-
 	m := _addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return errorMessage(nil, "Не удалось добавить расход.", addHelpMessage)
@@ -286,7 +273,7 @@ func (c *client) handleAdd(ctx context.Context, user *types.User, args string) s
 
 	date, amount, category, err := parseAddArgs(m[1:])
 	if err == nil {
-		resp := c.controller.AddExpense(request.AddExpense{
+		resp := c.controller.AddExpense(ctx, request.AddExpense{
 			User:     user,
 			Date:     date,
 			Amount:   amount,
@@ -353,9 +340,6 @@ func parseDate(input string) (time.Time, error) {
 }
 
 func (c *client) handleReport(ctx context.Context, user *types.User, args string) string {
-	span, _ := opentracing.StartSpanFromContext(ctx, "report")
-	defer span.Finish()
-
 	var (
 		from time.Time
 		err  error
@@ -369,7 +353,7 @@ func (c *client) handleReport(ctx context.Context, user *types.User, args string
 		return errorMessage(err, "Не удалось сформировать отчёт.", reportHelpMessage)
 	}
 
-	resp := c.controller.GetReport(request.GetReport{
+	resp := c.controller.GetReport(ctx, request.GetReport{
 		User: user,
 		From: from,
 	})
@@ -469,10 +453,10 @@ func prepareCurrenciesKeyboard(currencies []string) [][][]string {
 	return keyboard
 }
 
-func (c *client) resolveUser(tgUser *tgbotapi.User) (*types.User, error) {
-	if user, err := c.storage.FetchByID(tgUser.ID); err == nil {
+func (c *client) resolveUser(ctx context.Context, tgUser *tgbotapi.User) (*types.User, error) {
+	if user, err := c.storage.FetchByID(ctx, tgUser.ID); err == nil {
 		return user, nil
 	}
 
-	return c.storage.Add(tgUser.ID)
+	return c.storage.Add(ctx, tgUser.ID)
 }

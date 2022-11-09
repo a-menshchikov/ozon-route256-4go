@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 	"golang.org/x/text/encoding/charmap"
@@ -37,6 +38,9 @@ func NewGateway(client httpClient) *gateway {
 }
 
 func (g *gateway) FetchRates(ctx context.Context) (map[string]int64, time.Time, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "gateway.FetchRates")
+	defer span.Finish()
+
 	list, err := fetchCurrentRates(ctx, g.client, g.url, g.timeout)
 	if err != nil {
 		return nil, time.Time{}, errors.Wrap(err, "cannot fetch rates")

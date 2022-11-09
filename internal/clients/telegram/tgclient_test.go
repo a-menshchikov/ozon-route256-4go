@@ -23,15 +23,18 @@ import (
 )
 
 var (
+	updateConfigInterface = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
+	ctxInterface          = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 	testUser     = &([]types.User{types.User(int64(123))}[0])
 	testTgUserID = int64(123)
 	simpleError  = errors.New("error")
 )
 
 type mocksInitializer struct {
-	api        func(*tgmocks.Mockapi)
-	storage    func(*smocks.MockTelegramUserStorage)
-	controller func(*mmocks.MockController)
+	api        func(m *tgmocks.Mockapi)
+	storage    func(m *smocks.MockTelegramUserStorage)
+	controller func(m *mmocks.MockController)
 }
 
 func newTestCommandMessage(text string) *tgbotapi.Message {
@@ -109,13 +112,12 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("anything"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("бот временно неисправен"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(nil, simpleError)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -140,13 +142,12 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/avadakedavra"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("я не знаю такой команды"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -171,13 +172,12 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/start"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Привет!"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -202,8 +202,7 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/currency"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(gomock.All(
 					test.MessageTextContains("Текущая валюта: USD"),
 					test.MessageKeyboardContains("EUR"),
@@ -211,10 +210,10 @@ func Test_client_ListenUpdates(t *testing.T) {
 				))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListCurrencies(request.ListCurrencies{
+				m.EXPECT().ListCurrencies(gomock.AssignableToTypeOf(ctxInterface), request.ListCurrencies{
 					User: testUser,
 				}).Return(response.ListCurrencies{
 					Current: "USD",
@@ -254,13 +253,12 @@ func Test_client_ListenUpdates(t *testing.T) {
 						},
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("бот временно неисправен"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(nil, simpleError)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -292,15 +290,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						},
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Не удалось сменить текущую валюту"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().SetCurrency(request.SetCurrency{
+				m.EXPECT().SetCurrency(gomock.AssignableToTypeOf(ctxInterface), request.SetCurrency{
 					User: testUser,
 					Code: "EUR",
 				}).Return(response.SetCurrency(false))
@@ -334,17 +331,16 @@ func Test_client_ListenUpdates(t *testing.T) {
 						},
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				var callback = reflect.TypeOf((*tgbotapi.CallbackConfig)(nil)).Elem()
 				m.EXPECT().Request(gomock.AssignableToTypeOf(callback)).Return(nil, simpleError)
 				m.EXPECT().Send(test.MessageTextContains("Готово"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().SetCurrency(request.SetCurrency{
+				m.EXPECT().SetCurrency(gomock.AssignableToTypeOf(ctxInterface), request.SetCurrency{
 					User: testUser,
 					Code: "EUR",
 				}).Return(response.SetCurrency(true))
@@ -377,17 +373,16 @@ func Test_client_ListenUpdates(t *testing.T) {
 						},
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				var callback = reflect.TypeOf((*tgbotapi.CallbackConfig)(nil)).Elem()
 				m.EXPECT().Request(gomock.AssignableToTypeOf(callback)).Return(nil, nil)
 				m.EXPECT().Send(test.MessageTextContains("Готово"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().SetCurrency(request.SetCurrency{
+				m.EXPECT().SetCurrency(gomock.AssignableToTypeOf(ctxInterface), request.SetCurrency{
 					User: testUser,
 					Code: "RUB",
 				}).Return(response.SetCurrency(true))
@@ -414,12 +409,11 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit foo"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Не удалось задать лимит"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -444,16 +438,15 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit 200 "),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Не удалось задать лимит"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().SetLimit(request.SetLimit{
+				m.EXPECT().SetLimit(gomock.AssignableToTypeOf(ctxInterface), request.SetLimit{
 					User:     testUser,
 					Value:    2000000,
 					Category: "",
@@ -481,16 +474,15 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit 250 taxi & coffee "),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Готово"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(nil, simpleError)
-				m.EXPECT().Add(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(nil, simpleError)
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().SetLimit(request.SetLimit{
+				m.EXPECT().SetLimit(gomock.AssignableToTypeOf(ctxInterface), request.SetLimit{
 					User:     testUser,
 					Value:    2500000,
 					Category: "taxi & coffee",
@@ -518,15 +510,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit "),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Выполняется обновление курсов валют"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListLimits(request.ListLimits{
+				m.EXPECT().ListLimits(gomock.AssignableToTypeOf(ctxInterface), request.ListLimits{
 					User: testUser,
 				}).Return(response.ListLimits{
 					Ready: false,
@@ -554,15 +545,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("бот временно неисправен"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListLimits(request.ListLimits{
+				m.EXPECT().ListLimits(gomock.AssignableToTypeOf(ctxInterface), request.ListLimits{
 					User: testUser,
 				}).Return(response.ListLimits{
 					Ready:   true,
@@ -591,15 +581,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Лимиты ещё не заданы"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListLimits(request.ListLimits{
+				m.EXPECT().ListLimits(gomock.AssignableToTypeOf(ctxInterface), request.ListLimits{
 					User: testUser,
 				}).Return(response.ListLimits{
 					Ready:           true,
@@ -630,18 +619,17 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(gomock.All(
 					test.MessageTextContains("Общий лимит (осталось/всего)"),
 					test.MessageTextContains("50.00/500.00 RUB (1.00/10.00 USD)"),
 				))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListLimits(request.ListLimits{
+				m.EXPECT().ListLimits(gomock.AssignableToTypeOf(ctxInterface), request.ListLimits{
 					User: testUser,
 				}).Return(response.ListLimits{
 					Ready:           true,
@@ -682,8 +670,7 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/limit"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(gomock.All(
 					test.MessageTextContains("Твои лимиты (осталось/всего)"),
 					test.MessageTextContains("<b>0.00</b>/25.00 EUR (0.00/20.00 USD)"),
@@ -692,10 +679,10 @@ func Test_client_ListenUpdates(t *testing.T) {
 				))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().ListLimits(request.ListLimits{
+				m.EXPECT().ListLimits(gomock.AssignableToTypeOf(ctxInterface), request.ListLimits{
 					User: testUser,
 				}).Return(response.ListLimits{
 					Ready:           true,
@@ -754,12 +741,11 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add 2d 10 taxi"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Не удалось добавить расход"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -784,12 +770,11 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add 99.99.9999 10 taxi"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("дата указана неверно"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -814,15 +799,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add 20.10.2022 10 taxi"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Выполняется обновление курсов валют"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().AddExpense(request.AddExpense{
+				m.EXPECT().AddExpense(gomock.AssignableToTypeOf(ctxInterface), request.AddExpense{
 					User:     testUser,
 					Date:     utils.TruncateToDate(time.Date(2022, 10, 20, 0, 0, 0, 0, time.UTC)),
 					Amount:   100000,
@@ -853,15 +837,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add -10d 2 coffee"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("бот временно неисправен"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().AddExpense(request.AddExpense{
+				m.EXPECT().AddExpense(gomock.AssignableToTypeOf(ctxInterface), request.AddExpense{
 					User:     testUser,
 					Date:     utils.TruncateToDate(time.Now()).Add(-10 * 24 * time.Hour),
 					Amount:   20000,
@@ -893,15 +876,14 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add -1d 2,02 coffee"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Готово"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().AddExpense(request.AddExpense{
+				m.EXPECT().AddExpense(gomock.AssignableToTypeOf(ctxInterface), request.AddExpense{
 					User:     testUser,
 					Date:     utils.TruncateToDate(time.Now()).Add(-24 * time.Hour),
 					Amount:   20200,
@@ -933,18 +915,17 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/add @ 2.5 coffee"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(gomock.All(
 					test.MessageTextContains("Готово"),
 					test.MessageTextContains("Ты исчерпал заданный лимит"),
 				))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
-				m.EXPECT().AddExpense(request.AddExpense{
+				m.EXPECT().AddExpense(gomock.AssignableToTypeOf(ctxInterface), request.AddExpense{
 					User:     testUser,
 					Date:     utils.TruncateToDate(time.Now()),
 					Amount:   25000,
@@ -977,12 +958,11 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/report taxi"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Для просмотра расходов"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(*mmocks.MockController) {},
 		})
@@ -1007,16 +987,15 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/report"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Выполняется обновление курсов валют"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
 				from := utils.TruncateToDate(time.Now()).Add(-7 * 24 * time.Hour)
-				m.EXPECT().GetReport(request.GetReport{
+				m.EXPECT().GetReport(gomock.AssignableToTypeOf(ctxInterface), request.GetReport{
 					User: testUser,
 					From: from,
 				}).Return(response.GetReport{
@@ -1046,16 +1025,15 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/report 1w"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("бот временно неисправен"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
 				from := utils.TruncateToDate(time.Now()).Add(-7 * 24 * time.Hour)
-				m.EXPECT().GetReport(request.GetReport{
+				m.EXPECT().GetReport(gomock.AssignableToTypeOf(ctxInterface), request.GetReport{
 					User: testUser,
 					From: from,
 				}).Return(response.GetReport{
@@ -1086,16 +1064,15 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/report 2m"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				m.EXPECT().Send(test.MessageTextContains("Ты ещё не добавил ни одного расхода"))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
 				from := utils.TruncateToDate(time.Now()).Add(-60 * 24 * time.Hour)
-				m.EXPECT().GetReport(request.GetReport{
+				m.EXPECT().GetReport(gomock.AssignableToTypeOf(ctxInterface), request.GetReport{
 					User: testUser,
 					From: from,
 				}).Return(response.GetReport{
@@ -1127,8 +1104,7 @@ func Test_client_ListenUpdates(t *testing.T) {
 						Message: newTestCommandMessage("/report 3y"),
 					}
 				}()
-				var cfg = reflect.TypeOf((*tgbotapi.UpdateConfig)(nil)).Elem()
-				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(cfg)).Return(updates)
+				m.EXPECT().GetUpdatesChan(gomock.AssignableToTypeOf(updateConfigInterface)).Return(updates)
 				from := utils.TruncateToDate(time.Now()).Add(-3 * 365 * 24 * time.Hour)
 				m.EXPECT().Send(gomock.All(
 					test.MessageTextContains("Расходы с "+from.Format("02.01.2006")+" (валюта — RUB)"),
@@ -1138,11 +1114,11 @@ func Test_client_ListenUpdates(t *testing.T) {
 				))
 			},
 			storage: func(m *smocks.MockTelegramUserStorage) {
-				m.EXPECT().FetchByID(testTgUserID).Return(testUser, nil)
+				m.EXPECT().FetchByID(gomock.AssignableToTypeOf(ctxInterface), testTgUserID).Return(testUser, nil)
 			},
 			controller: func(m *mmocks.MockController) {
 				from := utils.TruncateToDate(time.Now()).Add(-3 * 365 * 24 * time.Hour)
-				m.EXPECT().GetReport(request.GetReport{
+				m.EXPECT().GetReport(gomock.AssignableToTypeOf(ctxInterface), request.GetReport{
 					User: testUser,
 					From: from,
 				}).Return(response.GetReport{

@@ -1,35 +1,36 @@
 package storage
 
 import (
+	"context"
 	"time"
 
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type TelegramUserStorage interface {
-	Add(tgUserID int64) (*types.User, error)
-	FetchByID(tgUserID int64) (*types.User, error)
+	Add(ctx context.Context, tgUserID int64) (*types.User, error)
+	FetchByID(ctx context.Context, tgUserID int64) (*types.User, error)
 }
 
 type ExpenseStorage interface {
-	Add(user *types.User, item types.ExpenseItem, category string) error
-	List(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
+	Add(ctx context.Context, user *types.User, item types.ExpenseItem, category string) error
+	List(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
 }
 
 type ExpenseLimitStorage interface {
-	Get(user *types.User, category string) (types.LimitItem, bool, error)
-	Set(user *types.User, total int64, currency, category string) error
-	Decrease(user *types.User, value int64, category string) (bool, error)
-	Unset(user *types.User, category string) error
-	List(user *types.User) (map[string]types.LimitItem, bool, error)
+	Get(ctx context.Context, user *types.User, category string) (types.LimitItem, bool, error)
+	Set(ctx context.Context, user *types.User, total int64, currency, category string) error
+	Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error)
+	Unset(ctx context.Context, user *types.User, category string) error
+	List(ctx context.Context, user *types.User) (map[string]types.LimitItem, bool, error)
 }
 
 type CurrencyStorage interface {
-	Get(user *types.User) (string, bool, error)
-	Set(user *types.User, value string) error
+	Get(ctx context.Context, user *types.User) (string, bool, error)
+	Set(ctx context.Context, user *types.User, value string) error
 }
 
 type CurrencyRatesStorage interface {
-	Get(currency string, date time.Time) (int64, bool, error)
-	Add(currency string, date time.Time, rate int64) error
+	Get(ctx context.Context, currency string, date time.Time) (int64, bool, error)
+	Add(ctx context.Context, currency string, date time.Time, rate int64) error
 }

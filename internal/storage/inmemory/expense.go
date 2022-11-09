@@ -1,8 +1,10 @@
 package inmemory
 
 import (
+	"context"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
@@ -15,7 +17,10 @@ type expensesGroup struct {
 	expenses []types.ExpenseItem
 }
 
-func (s *inMemoryExpenseStorage) Add(user *types.User, item types.ExpenseItem, category string) error {
+func (s *inMemoryExpenseStorage) Add(ctx context.Context, user *types.User, item types.ExpenseItem, category string) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "inMemoryExpenseStorage.Add")
+	defer span.Finish()
+
 	if _, ok := s.data[user]; !ok {
 		s.data[user] = []*expensesGroup{{
 			category: category,
@@ -39,7 +44,10 @@ func (s *inMemoryExpenseStorage) Add(user *types.User, item types.ExpenseItem, c
 	return nil
 }
 
-func (s *inMemoryExpenseStorage) List(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+func (s *inMemoryExpenseStorage) List(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "inMemoryExpenseStorage.List")
+	defer span.Finish()
+
 	if _, ok := s.data[user]; !ok {
 		return nil, nil
 	}

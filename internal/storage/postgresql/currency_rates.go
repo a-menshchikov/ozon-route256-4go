@@ -6,19 +6,22 @@ import (
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 )
 
 type pgCurrencyRatesStorage struct {
-	ctx context.Context
-	db  pgxtype.Querier
+	db pgxtype.Querier
 }
 
-func (s *pgCurrencyRatesStorage) Get(currency string, date time.Time) (int64, bool, error) {
+func (s *pgCurrencyRatesStorage) Get(ctx context.Context, currency string, date time.Time) (int64, bool, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgCurrencyRatesStorage.Get")
+	defer span.Finish()
+
 	var rate int64
 
 	err := s.db.QueryRow(
-		s.ctx,
+		ctx,
 		`with date_filter as (select $1 code, $2::date date),
               rates as (select * from rates where code = $1),
               result as (select date,
@@ -44,9 +47,12 @@ func (s *pgCurrencyRatesStorage) Get(currency string, date time.Time) (int64, bo
 	return rate, true, nil
 }
 
-func (s *pgCurrencyRatesStorage) Add(currency string, date time.Time, rate int64) error {
+func (s *pgCurrencyRatesStorage) Add(ctx context.Context, currency string, date time.Time, rate int64) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgCurrencyRatesStorage.Add")
+	defer span.Finish()
+
 	_, err := s.db.Exec(
-		s.ctx,
+		ctx,
 		`insert into rates (code, date, rate)
          values ($1, $2, $3)
            on conflict (code, date)

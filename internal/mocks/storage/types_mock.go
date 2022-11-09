@@ -5,6 +5,7 @@
 package mock_storage
 
 import (
+	context "context"
 	reflect "reflect"
 	time "time"
 
@@ -36,33 +37,33 @@ func (m *MockTelegramUserStorage) EXPECT() *MockTelegramUserStorageMockRecorder 
 }
 
 // Add mocks base method.
-func (m *MockTelegramUserStorage) Add(tgUserID int64) (*types.User, error) {
+func (m *MockTelegramUserStorage) Add(ctx context.Context, tgUserID int64) (*types.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", tgUserID)
+	ret := m.ctrl.Call(m, "Add", ctx, tgUserID)
 	ret0, _ := ret[0].(*types.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockTelegramUserStorageMockRecorder) Add(tgUserID interface{}) *gomock.Call {
+func (mr *MockTelegramUserStorageMockRecorder) Add(ctx, tgUserID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockTelegramUserStorage)(nil).Add), tgUserID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockTelegramUserStorage)(nil).Add), ctx, tgUserID)
 }
 
 // FetchByID mocks base method.
-func (m *MockTelegramUserStorage) FetchByID(tgUserID int64) (*types.User, error) {
+func (m *MockTelegramUserStorage) FetchByID(ctx context.Context, tgUserID int64) (*types.User, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FetchByID", tgUserID)
+	ret := m.ctrl.Call(m, "FetchByID", ctx, tgUserID)
 	ret0, _ := ret[0].(*types.User)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // FetchByID indicates an expected call of FetchByID.
-func (mr *MockTelegramUserStorageMockRecorder) FetchByID(tgUserID interface{}) *gomock.Call {
+func (mr *MockTelegramUserStorageMockRecorder) FetchByID(ctx, tgUserID interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByID", reflect.TypeOf((*MockTelegramUserStorage)(nil).FetchByID), tgUserID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchByID", reflect.TypeOf((*MockTelegramUserStorage)(nil).FetchByID), ctx, tgUserID)
 }
 
 // MockExpenseStorage is a mock of ExpenseStorage interface.
@@ -89,32 +90,32 @@ func (m *MockExpenseStorage) EXPECT() *MockExpenseStorageMockRecorder {
 }
 
 // Add mocks base method.
-func (m *MockExpenseStorage) Add(user *types.User, item types.ExpenseItem, category string) error {
+func (m *MockExpenseStorage) Add(ctx context.Context, user *types.User, item types.ExpenseItem, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", user, item, category)
+	ret := m.ctrl.Call(m, "Add", ctx, user, item, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockExpenseStorageMockRecorder) Add(user, item, category interface{}) *gomock.Call {
+func (mr *MockExpenseStorageMockRecorder) Add(ctx, user, item, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockExpenseStorage)(nil).Add), user, item, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockExpenseStorage)(nil).Add), ctx, user, item, category)
 }
 
 // List mocks base method.
-func (m *MockExpenseStorage) List(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+func (m *MockExpenseStorage) List(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", user, from)
+	ret := m.ctrl.Call(m, "List", ctx, user, from)
 	ret0, _ := ret[0].(map[string][]types.ExpenseItem)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // List indicates an expected call of List.
-func (mr *MockExpenseStorageMockRecorder) List(user, from interface{}) *gomock.Call {
+func (mr *MockExpenseStorageMockRecorder) List(ctx, user, from interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockExpenseStorage)(nil).List), user, from)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockExpenseStorage)(nil).List), ctx, user, from)
 }
 
 // MockExpenseLimitStorage is a mock of ExpenseLimitStorage interface.
@@ -141,24 +142,24 @@ func (m *MockExpenseLimitStorage) EXPECT() *MockExpenseLimitStorageMockRecorder 
 }
 
 // Decrease mocks base method.
-func (m *MockExpenseLimitStorage) Decrease(user *types.User, value int64, category string) (bool, error) {
+func (m *MockExpenseLimitStorage) Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Decrease", user, value, category)
+	ret := m.ctrl.Call(m, "Decrease", ctx, user, value, category)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Decrease indicates an expected call of Decrease.
-func (mr *MockExpenseLimitStorageMockRecorder) Decrease(user, value, category interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) Decrease(ctx, user, value, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decrease", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Decrease), user, value, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decrease", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Decrease), ctx, user, value, category)
 }
 
 // Get mocks base method.
-func (m *MockExpenseLimitStorage) Get(user *types.User, category string) (types.LimitItem, bool, error) {
+func (m *MockExpenseLimitStorage) Get(ctx context.Context, user *types.User, category string) (types.LimitItem, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", user, category)
+	ret := m.ctrl.Call(m, "Get", ctx, user, category)
 	ret0, _ := ret[0].(types.LimitItem)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -166,15 +167,15 @@ func (m *MockExpenseLimitStorage) Get(user *types.User, category string) (types.
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockExpenseLimitStorageMockRecorder) Get(user, category interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) Get(ctx, user, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Get), user, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Get), ctx, user, category)
 }
 
 // List mocks base method.
-func (m *MockExpenseLimitStorage) List(user *types.User) (map[string]types.LimitItem, bool, error) {
+func (m *MockExpenseLimitStorage) List(ctx context.Context, user *types.User) (map[string]types.LimitItem, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", user)
+	ret := m.ctrl.Call(m, "List", ctx, user)
 	ret0, _ := ret[0].(map[string]types.LimitItem)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -182,37 +183,37 @@ func (m *MockExpenseLimitStorage) List(user *types.User) (map[string]types.Limit
 }
 
 // List indicates an expected call of List.
-func (mr *MockExpenseLimitStorageMockRecorder) List(user interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) List(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockExpenseLimitStorage)(nil).List), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockExpenseLimitStorage)(nil).List), ctx, user)
 }
 
 // Set mocks base method.
-func (m *MockExpenseLimitStorage) Set(user *types.User, total int64, currency, category string) error {
+func (m *MockExpenseLimitStorage) Set(ctx context.Context, user *types.User, total int64, currency, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", user, total, currency, category)
+	ret := m.ctrl.Call(m, "Set", ctx, user, total, currency, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MockExpenseLimitStorageMockRecorder) Set(user, total, currency, category interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) Set(ctx, user, total, currency, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Set), user, total, currency, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Set), ctx, user, total, currency, category)
 }
 
 // Unset mocks base method.
-func (m *MockExpenseLimitStorage) Unset(user *types.User, category string) error {
+func (m *MockExpenseLimitStorage) Unset(ctx context.Context, user *types.User, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Unset", user, category)
+	ret := m.ctrl.Call(m, "Unset", ctx, user, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Unset indicates an expected call of Unset.
-func (mr *MockExpenseLimitStorageMockRecorder) Unset(user, category interface{}) *gomock.Call {
+func (mr *MockExpenseLimitStorageMockRecorder) Unset(ctx, user, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unset", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Unset), user, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unset", reflect.TypeOf((*MockExpenseLimitStorage)(nil).Unset), ctx, user, category)
 }
 
 // MockCurrencyStorage is a mock of CurrencyStorage interface.
@@ -239,9 +240,9 @@ func (m *MockCurrencyStorage) EXPECT() *MockCurrencyStorageMockRecorder {
 }
 
 // Get mocks base method.
-func (m *MockCurrencyStorage) Get(user *types.User) (string, bool, error) {
+func (m *MockCurrencyStorage) Get(ctx context.Context, user *types.User) (string, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", user)
+	ret := m.ctrl.Call(m, "Get", ctx, user)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -249,23 +250,23 @@ func (m *MockCurrencyStorage) Get(user *types.User) (string, bool, error) {
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockCurrencyStorageMockRecorder) Get(user interface{}) *gomock.Call {
+func (mr *MockCurrencyStorageMockRecorder) Get(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCurrencyStorage)(nil).Get), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCurrencyStorage)(nil).Get), ctx, user)
 }
 
 // Set mocks base method.
-func (m *MockCurrencyStorage) Set(user *types.User, value string) error {
+func (m *MockCurrencyStorage) Set(ctx context.Context, user *types.User, value string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", user, value)
+	ret := m.ctrl.Call(m, "Set", ctx, user, value)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MockCurrencyStorageMockRecorder) Set(user, value interface{}) *gomock.Call {
+func (mr *MockCurrencyStorageMockRecorder) Set(ctx, user, value interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockCurrencyStorage)(nil).Set), user, value)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockCurrencyStorage)(nil).Set), ctx, user, value)
 }
 
 // MockCurrencyRatesStorage is a mock of CurrencyRatesStorage interface.
@@ -292,23 +293,23 @@ func (m *MockCurrencyRatesStorage) EXPECT() *MockCurrencyRatesStorageMockRecorde
 }
 
 // Add mocks base method.
-func (m *MockCurrencyRatesStorage) Add(currency string, date time.Time, rate int64) error {
+func (m *MockCurrencyRatesStorage) Add(ctx context.Context, currency string, date time.Time, rate int64) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", currency, date, rate)
+	ret := m.ctrl.Call(m, "Add", ctx, currency, date, rate)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockCurrencyRatesStorageMockRecorder) Add(currency, date, rate interface{}) *gomock.Call {
+func (mr *MockCurrencyRatesStorageMockRecorder) Add(ctx, currency, date, rate interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Add), currency, date, rate)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Add), ctx, currency, date, rate)
 }
 
 // Get mocks base method.
-func (m *MockCurrencyRatesStorage) Get(currency string, date time.Time) (int64, bool, error) {
+func (m *MockCurrencyRatesStorage) Get(ctx context.Context, currency string, date time.Time) (int64, bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", currency, date)
+	ret := m.ctrl.Call(m, "Get", ctx, currency, date)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
@@ -316,7 +317,7 @@ func (m *MockCurrencyRatesStorage) Get(currency string, date time.Time) (int64, 
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockCurrencyRatesStorageMockRecorder) Get(currency, date interface{}) *gomock.Call {
+func (mr *MockCurrencyRatesStorageMockRecorder) Get(ctx, currency, date interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Get), currency, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCurrencyRatesStorage)(nil).Get), ctx, currency, date)
 }
