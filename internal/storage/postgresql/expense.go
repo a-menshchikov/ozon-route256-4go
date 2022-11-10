@@ -5,18 +5,21 @@ import (
 	"time"
 
 	"github.com/jackc/pgtype/pgxtype"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type pgExpenseStorage struct {
-	ctx context.Context
-	db  pgxtype.Querier
+	db pgxtype.Querier
 }
 
-func (s *pgExpenseStorage) Add(user *types.User, item types.ExpenseItem, category string) error {
+func (s *pgExpenseStorage) Add(ctx context.Context, user *types.User, item types.ExpenseItem, category string) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseStorage.Add")
+	defer span.Finish()
+
 	_, err := s.db.Exec(
-		s.ctx,
+		ctx,
 		`insert into expenses (user_id, date, amount, currency_code, category)
          values ($1, $2, $3, $4, $5)`,
 		user,          // $1
@@ -32,9 +35,12 @@ func (s *pgExpenseStorage) Add(user *types.User, item types.ExpenseItem, categor
 	return nil
 }
 
-func (s *pgExpenseStorage) List(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+func (s *pgExpenseStorage) List(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseStorage.List")
+	defer span.Finish()
+
 	rows, err := s.db.Query(
-		s.ctx,
+		ctx,
 		`select category, date, amount, currency_code
          from expenses
          where user_id = $1

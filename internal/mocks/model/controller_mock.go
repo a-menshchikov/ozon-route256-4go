@@ -39,87 +39,87 @@ func (m *MockController) EXPECT() *MockControllerMockRecorder {
 }
 
 // AddExpense mocks base method.
-func (m *MockController) AddExpense(arg0 request.AddExpense) response.AddExpense {
+func (m *MockController) AddExpense(ctx context.Context, req request.AddExpense) response.AddExpense {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AddExpense", arg0)
+	ret := m.ctrl.Call(m, "AddExpense", ctx, req)
 	ret0, _ := ret[0].(response.AddExpense)
 	return ret0
 }
 
 // AddExpense indicates an expected call of AddExpense.
-func (mr *MockControllerMockRecorder) AddExpense(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) AddExpense(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddExpense", reflect.TypeOf((*MockController)(nil).AddExpense), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AddExpense", reflect.TypeOf((*MockController)(nil).AddExpense), ctx, req)
 }
 
 // GetReport mocks base method.
-func (m *MockController) GetReport(arg0 request.GetReport) response.GetReport {
+func (m *MockController) GetReport(ctx context.Context, req request.GetReport) response.GetReport {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetReport", arg0)
+	ret := m.ctrl.Call(m, "GetReport", ctx, req)
 	ret0, _ := ret[0].(response.GetReport)
 	return ret0
 }
 
 // GetReport indicates an expected call of GetReport.
-func (mr *MockControllerMockRecorder) GetReport(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) GetReport(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReport", reflect.TypeOf((*MockController)(nil).GetReport), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReport", reflect.TypeOf((*MockController)(nil).GetReport), ctx, req)
 }
 
 // ListCurrencies mocks base method.
-func (m *MockController) ListCurrencies(arg0 request.ListCurrencies) response.ListCurrencies {
+func (m *MockController) ListCurrencies(ctx context.Context, req request.ListCurrencies) response.ListCurrencies {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListCurrencies", arg0)
+	ret := m.ctrl.Call(m, "ListCurrencies", ctx, req)
 	ret0, _ := ret[0].(response.ListCurrencies)
 	return ret0
 }
 
 // ListCurrencies indicates an expected call of ListCurrencies.
-func (mr *MockControllerMockRecorder) ListCurrencies(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) ListCurrencies(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCurrencies", reflect.TypeOf((*MockController)(nil).ListCurrencies), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCurrencies", reflect.TypeOf((*MockController)(nil).ListCurrencies), ctx, req)
 }
 
 // ListLimits mocks base method.
-func (m *MockController) ListLimits(arg0 request.ListLimits) response.ListLimits {
+func (m *MockController) ListLimits(ctx context.Context, req request.ListLimits) response.ListLimits {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListLimits", arg0)
+	ret := m.ctrl.Call(m, "ListLimits", ctx, req)
 	ret0, _ := ret[0].(response.ListLimits)
 	return ret0
 }
 
 // ListLimits indicates an expected call of ListLimits.
-func (mr *MockControllerMockRecorder) ListLimits(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) ListLimits(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLimits", reflect.TypeOf((*MockController)(nil).ListLimits), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLimits", reflect.TypeOf((*MockController)(nil).ListLimits), ctx, req)
 }
 
 // SetCurrency mocks base method.
-func (m *MockController) SetCurrency(arg0 request.SetCurrency) response.SetCurrency {
+func (m *MockController) SetCurrency(ctx context.Context, req request.SetCurrency) response.SetCurrency {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetCurrency", arg0)
+	ret := m.ctrl.Call(m, "SetCurrency", ctx, req)
 	ret0, _ := ret[0].(response.SetCurrency)
 	return ret0
 }
 
 // SetCurrency indicates an expected call of SetCurrency.
-func (mr *MockControllerMockRecorder) SetCurrency(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) SetCurrency(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrency", reflect.TypeOf((*MockController)(nil).SetCurrency), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCurrency", reflect.TypeOf((*MockController)(nil).SetCurrency), ctx, req)
 }
 
 // SetLimit mocks base method.
-func (m *MockController) SetLimit(arg0 request.SetLimit) response.SetLimit {
+func (m *MockController) SetLimit(ctx context.Context, req request.SetLimit) response.SetLimit {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "SetLimit", arg0)
+	ret := m.ctrl.Call(m, "SetLimit", ctx, req)
 	ret0, _ := ret[0].(response.SetLimit)
 	return ret0
 }
 
 // SetLimit indicates an expected call of SetLimit.
-func (mr *MockControllerMockRecorder) SetLimit(arg0 interface{}) *gomock.Call {
+func (mr *MockControllerMockRecorder) SetLimit(ctx, req interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLimit", reflect.TypeOf((*MockController)(nil).SetLimit), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetLimit", reflect.TypeOf((*MockController)(nil).SetLimit), ctx, req)
 }
 
 // Mockexpenser is a mock of expenser interface.
@@ -146,32 +146,32 @@ func (m *Mockexpenser) EXPECT() *MockexpenserMockRecorder {
 }
 
 // Add mocks base method.
-func (m *Mockexpenser) Add(user *types.User, date time.Time, amount int64, currency, category string) error {
+func (m *Mockexpenser) Add(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Add", user, date, amount, currency, category)
+	ret := m.ctrl.Call(m, "Add", ctx, user, date, amount, currency, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Add indicates an expected call of Add.
-func (mr *MockexpenserMockRecorder) Add(user, date, amount, currency, category interface{}) *gomock.Call {
+func (mr *MockexpenserMockRecorder) Add(ctx, user, date, amount, currency, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*Mockexpenser)(nil).Add), user, date, amount, currency, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Add", reflect.TypeOf((*Mockexpenser)(nil).Add), ctx, user, date, amount, currency, category)
 }
 
 // Report mocks base method.
-func (m *Mockexpenser) Report(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
+func (m *Mockexpenser) Report(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Report", user, from)
+	ret := m.ctrl.Call(m, "Report", ctx, user, from)
 	ret0, _ := ret[0].(map[string][]types.ExpenseItem)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Report indicates an expected call of Report.
-func (mr *MockexpenserMockRecorder) Report(user, from interface{}) *gomock.Call {
+func (mr *MockexpenserMockRecorder) Report(ctx, user, from interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*Mockexpenser)(nil).Report), user, from)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Report", reflect.TypeOf((*Mockexpenser)(nil).Report), ctx, user, from)
 }
 
 // Mocklimiter is a mock of limiter interface.
@@ -198,76 +198,76 @@ func (m *Mocklimiter) EXPECT() *MocklimiterMockRecorder {
 }
 
 // Decrease mocks base method.
-func (m *Mocklimiter) Decrease(user *types.User, value int64, category string) (bool, error) {
+func (m *Mocklimiter) Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Decrease", user, value, category)
+	ret := m.ctrl.Call(m, "Decrease", ctx, user, value, category)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Decrease indicates an expected call of Decrease.
-func (mr *MocklimiterMockRecorder) Decrease(user, value, category interface{}) *gomock.Call {
+func (mr *MocklimiterMockRecorder) Decrease(ctx, user, value, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decrease", reflect.TypeOf((*Mocklimiter)(nil).Decrease), user, value, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Decrease", reflect.TypeOf((*Mocklimiter)(nil).Decrease), ctx, user, value, category)
 }
 
 // Get mocks base method.
-func (m *Mocklimiter) Get(user *types.User, category string) (types.LimitItem, error) {
+func (m *Mocklimiter) Get(ctx context.Context, user *types.User, category string) (types.LimitItem, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", user, category)
+	ret := m.ctrl.Call(m, "Get", ctx, user, category)
 	ret0, _ := ret[0].(types.LimitItem)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MocklimiterMockRecorder) Get(user, category interface{}) *gomock.Call {
+func (mr *MocklimiterMockRecorder) Get(ctx, user, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*Mocklimiter)(nil).Get), user, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*Mocklimiter)(nil).Get), ctx, user, category)
 }
 
 // List mocks base method.
-func (m *Mocklimiter) List(user *types.User) (map[string]types.LimitItem, error) {
+func (m *Mocklimiter) List(ctx context.Context, user *types.User) (map[string]types.LimitItem, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", user)
+	ret := m.ctrl.Call(m, "List", ctx, user)
 	ret0, _ := ret[0].(map[string]types.LimitItem)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // List indicates an expected call of List.
-func (mr *MocklimiterMockRecorder) List(user interface{}) *gomock.Call {
+func (mr *MocklimiterMockRecorder) List(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*Mocklimiter)(nil).List), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*Mocklimiter)(nil).List), ctx, user)
 }
 
 // Set mocks base method.
-func (m *Mocklimiter) Set(user *types.User, limit int64, currency, category string) error {
+func (m *Mocklimiter) Set(ctx context.Context, user *types.User, limit int64, currency, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", user, limit, currency, category)
+	ret := m.ctrl.Call(m, "Set", ctx, user, limit, currency, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MocklimiterMockRecorder) Set(user, limit, currency, category interface{}) *gomock.Call {
+func (mr *MocklimiterMockRecorder) Set(ctx, user, limit, currency, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*Mocklimiter)(nil).Set), user, limit, currency, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*Mocklimiter)(nil).Set), ctx, user, limit, currency, category)
 }
 
 // Unset mocks base method.
-func (m *Mocklimiter) Unset(user *types.User, category string) error {
+func (m *Mocklimiter) Unset(ctx context.Context, user *types.User, category string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Unset", user, category)
+	ret := m.ctrl.Call(m, "Unset", ctx, user, category)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Unset indicates an expected call of Unset.
-func (mr *MocklimiterMockRecorder) Unset(user, category interface{}) *gomock.Call {
+func (mr *MocklimiterMockRecorder) Unset(ctx, user, category interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unset", reflect.TypeOf((*Mocklimiter)(nil).Unset), user, category)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Unset", reflect.TypeOf((*Mocklimiter)(nil).Unset), ctx, user, category)
 }
 
 // Mockrater is a mock of rater interface.
@@ -294,18 +294,18 @@ func (m *Mockrater) EXPECT() *MockraterMockRecorder {
 }
 
 // Exchange mocks base method.
-func (m *Mockrater) Exchange(value int64, from, to string, date time.Time) (int64, error) {
+func (m *Mockrater) Exchange(ctx context.Context, value int64, from, to string, date time.Time) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Exchange", value, from, to, date)
+	ret := m.ctrl.Call(m, "Exchange", ctx, value, from, to, date)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Exchange indicates an expected call of Exchange.
-func (mr *MockraterMockRecorder) Exchange(value, from, to, date interface{}) *gomock.Call {
+func (mr *MockraterMockRecorder) Exchange(ctx, value, from, to, date interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exchange", reflect.TypeOf((*Mockrater)(nil).Exchange), value, from, to, date)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Exchange", reflect.TypeOf((*Mockrater)(nil).Exchange), ctx, value, from, to, date)
 }
 
 // Ready mocks base method.
@@ -323,9 +323,11 @@ func (mr *MockraterMockRecorder) Ready() *gomock.Call {
 }
 
 // Run mocks base method.
-func (m *Mockrater) Run(ctx context.Context) {
+func (m *Mockrater) Run(ctx context.Context) error {
 	m.ctrl.T.Helper()
-	m.ctrl.Call(m, "Run", ctx)
+	ret := m.ctrl.Call(m, "Run", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // Run indicates an expected call of Run.
@@ -358,18 +360,18 @@ func (m *MockcurrencyManager) EXPECT() *MockcurrencyManagerMockRecorder {
 }
 
 // Get mocks base method.
-func (m *MockcurrencyManager) Get(user *types.User) (string, error) {
+func (m *MockcurrencyManager) Get(ctx context.Context, user *types.User) (string, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Get", user)
+	ret := m.ctrl.Call(m, "Get", ctx, user)
 	ret0, _ := ret[0].(string)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Get indicates an expected call of Get.
-func (mr *MockcurrencyManagerMockRecorder) Get(user interface{}) *gomock.Call {
+func (mr *MockcurrencyManagerMockRecorder) Get(ctx, user interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockcurrencyManager)(nil).Get), user)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockcurrencyManager)(nil).Get), ctx, user)
 }
 
 // ListCurrenciesCodesWithFlags mocks base method.
@@ -387,15 +389,15 @@ func (mr *MockcurrencyManagerMockRecorder) ListCurrenciesCodesWithFlags() *gomoc
 }
 
 // Set mocks base method.
-func (m *MockcurrencyManager) Set(user *types.User, currency string) error {
+func (m *MockcurrencyManager) Set(ctx context.Context, user *types.User, currency string) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Set", user, currency)
+	ret := m.ctrl.Call(m, "Set", ctx, user, currency)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // Set indicates an expected call of Set.
-func (mr *MockcurrencyManagerMockRecorder) Set(user, currency interface{}) *gomock.Call {
+func (mr *MockcurrencyManagerMockRecorder) Set(ctx, user, currency interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockcurrencyManager)(nil).Set), user, currency)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Set", reflect.TypeOf((*MockcurrencyManager)(nil).Set), ctx, user, currency)
 }

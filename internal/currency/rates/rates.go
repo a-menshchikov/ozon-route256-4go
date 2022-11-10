@@ -2,13 +2,14 @@ package rates
 
 import (
 	"context"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
+	"go.uber.org/zap"
 )
 
 var (
@@ -28,30 +29,34 @@ type rater struct {
 
 	storage storage.CurrencyRatesStorage
 	gateway gateway
+	logger  *zap.Logger
 }
 
-func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage, g gateway) *rater {
+func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage, g gateway, l *zap.Logger) *rater {
 	return &rater{
 		refreshInterval: currencyCfg.RefreshInterval,
 		baseCurrency:    currencyCfg.Base,
 
 		storage: s,
 		gateway: g,
+		logger:  l,
 	}
 }
 
-func (r *rater) Run(ctx context.Context) {
+func (r *rater) Run(ctx context.Context) error {
 	r.refreshRates(ctx)
 	ticker := time.NewTicker(r.refreshInterval)
 
 	select {
 	case <-ctx.Done():
 		ticker.Stop()
-		return
+		break
 
 	case <-ticker.C:
 		r.refreshRates(ctx)
 	}
+
+	return nil
 }
 
 func (r *rater) Ready() bool {
@@ -61,7 +66,15 @@ func (r *rater) Ready() bool {
 	return r.ready
 }
 
-func (r *rater) Exchange(value int64, from, to string, date time.Time) (int64, error) {
+func (r *rater) Exchange(ctx context.Context, value int64, from, to string, date time.Time) (int64, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "rater.Exchange", opentracing.Tags{
+		"value": value,
+		"from":  from,
+		"to":    to,
+		"date":  date,
+	})
+	defer span.Finish()
+
 	if from == to {
 		return value, nil
 	}
@@ -78,7 +91,7 @@ func (r *rater) Exchange(value int64, from, to string, date time.Time) (int64, e
 	)
 
 	if from != r.baseCurrency {
-		fromRate, ok, err = r.storage.Get(from, date)
+		fromRate, ok, err = r.storage.Get(ctx, from, date)
 		if err != nil {
 			return 0, errors.Wrap(err, "CurrencyRatesStorage.Get (from)")
 		} else if !ok {
@@ -88,7 +101,7 @@ func (r *rater) Exchange(value int64, from, to string, date time.Time) (int64, e
 	}
 
 	if to != r.baseCurrency {
-		toRate, ok, err = r.storage.Get(to, date)
+		toRate, ok, err = r.storage.Get(ctx, to, date)
 		if err != nil {
 			return 0, errors.Wrap(err, "CurrencyRatesStorage.Get (to)")
 		} else if !ok {
@@ -100,9 +113,12 @@ func (r *rater) Exchange(value int64, from, to string, date time.Time) (int64, e
 }
 
 func (r *rater) refreshRates(ctx context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "rater.refreshRates")
+	defer span.Finish()
+
 	rates, date, err := r.gateway.FetchRates(ctx)
 	if err != nil {
-		log.Println("rates refresh failed:", err.Error())
+		r.logger.Warn("rates refresh failed", zap.Error(err))
 		return
 	}
 
@@ -111,8 +127,8 @@ func (r *rater) refreshRates(ctx context.Context) {
 
 	r.ready = false
 	for curr, rate := range rates {
-		if err := r.storage.Add(curr, date, rate); err != nil {
-			log.Println("CurrencyRatesStorage.Add failed:", err.Error())
+		if err := r.storage.Add(ctx, curr, date, rate); err != nil {
+			r.logger.Error("CurrencyRatesStorage.Add failed", zap.Error(err))
 		}
 	}
 	r.ready = true

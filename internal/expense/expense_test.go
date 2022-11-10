@@ -1,214 +1,203 @@
 package expense
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/storage"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 )
 
 var (
+	ctxInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
+
 	testUser    = &([]types.User{types.User(int64(123))}[0])
 	today       = utils.TruncateToDate(time.Now())
 	tomorrow    = today.Add(24 * time.Hour)
 	simpleError = errors.New("error")
 )
 
-func Test_expenser_Add(t *testing.T) {
+type mocksInitializer struct {
+	storage func(m *mocks.MockExpenseStorage)
+}
+
+func setupExpenser(t *testing.T, i mocksInitializer) *expenser {
 	ctrl := gomock.NewController(t)
 
-	type fields struct {
-		storage func() storage.ExpenseStorage
+	storageMock := mocks.NewMockExpenseStorage(ctrl)
+	if i.storage != nil {
+		i.storage(storageMock)
 	}
-	type args struct {
-		date     time.Time
-		amount   int64
-		currency string
-		category string
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name: "negative amount",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					return nil
-				},
+
+	return NewExpenser(storageMock)
+}
+
+func Test_expenser_Add(t *testing.T) {
+	t.Run("negative amount", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{})
+
+		// ACT
+		err := e.Add(
+			context.Background(),
+			testUser,
+			today,         // date
+			int64(-10000), // amount
+			"RUB",         // currency
+			"",            // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("feature expense", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{})
+
+		// ACT
+		err := e.Add(
+			context.Background(),
+			testUser,
+			tomorrow,     // date
+			int64(10000), // amount
+			"RUB",        // currency
+			"",           // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseStorage) {
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testUser, types.ExpenseItem{
+					Date:     today,
+					Amount:   20000,
+					Currency: "RUB",
+				}, "taxi").Return(simpleError)
 			},
-			args: args{
-				date:     today,
-				amount:   -10000,
-				currency: "RUB",
-				category: "",
-			},
-			wantErr: true,
-		},
-		{
-			name: "feature expense",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					return nil
-				},
-			},
-			args: args{
-				date:     tomorrow,
-				amount:   10000,
-				currency: "RUB",
-				category: "",
-			},
-			wantErr: true,
-		},
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					m := mocks.NewMockExpenseStorage(ctrl)
-					m.EXPECT().Add(testUser, types.ExpenseItem{
-						Date:     today,
-						Amount:   20000,
-						Currency: "RUB",
-					}, "taxi").Return(simpleError)
-					return m
-				},
-			},
-			args: args{
-				date:     today,
-				amount:   20000,
-				currency: "RUB",
-				category: "taxi",
-			},
-			wantErr: true,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					m := mocks.NewMockExpenseStorage(ctrl)
-					m.EXPECT().Add(testUser, types.ExpenseItem{
-						Date:     today,
-						Amount:   150000,
-						Currency: "RUB",
-					}, "coffee").Return(nil)
-					return m
-				},
-			},
-			args: args{
-				date:     today,
-				amount:   150000,
-				currency: "RUB",
-				category: "coffee",
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := NewExpenser(tt.fields.storage())
-			if err := e.Add(testUser, tt.args.date, tt.args.amount, tt.args.currency, tt.args.category); (err != nil) != tt.wantErr {
-				t.Errorf("Add() error = %v, wantErr %v", err, tt.wantErr)
-			}
 		})
-	}
+
+		// ACT
+		err := e.Add(
+			context.Background(),
+			testUser,
+			today,        // date
+			int64(20000), // amount
+			"RUB",        // currency
+			"taxi",       // category
+		)
+
+		// ASSERT
+		assert.Error(t, err)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseStorage) {
+				m.EXPECT().Add(gomock.AssignableToTypeOf(ctxInterface), testUser, types.ExpenseItem{
+					Date:     today,
+					Amount:   150000,
+					Currency: "RUB",
+				}, "coffee").Return(nil)
+			},
+		})
+
+		// ACT
+		err := e.Add(
+			context.Background(),
+			testUser,
+			today,         // date
+			int64(150000), // amount
+			"RUB",         // currency
+			"coffee",      // category
+		)
+
+		// ASSERT
+		assert.NoError(t, err)
+	})
 }
 
 func Test_expenser_Report(t *testing.T) {
-	ctrl := gomock.NewController(t)
-
-	type fields struct {
-		storage func() storage.ExpenseStorage
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		want    map[string][]types.ExpenseItem
-		wantErr bool
-	}{
-		{
-			name: "error",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					m := mocks.NewMockExpenseStorage(ctrl)
-					m.EXPECT().List(testUser, today).Return(nil, simpleError)
-					return m
-				},
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseStorage) {
+				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser, today).Return(nil, simpleError)
 			},
-			want:    nil,
-			wantErr: true,
-		},
-		{
-			name: "success",
-			fields: fields{
-				storage: func() storage.ExpenseStorage {
-					m := mocks.NewMockExpenseStorage(ctrl)
-					m.EXPECT().List(testUser, today).Return(map[string][]types.ExpenseItem{
-						"taxi": {
-							{
-								Date:     today,
-								Amount:   100000,
-								Currency: "USD",
-							},
-							{
-								Date:     today,
-								Amount:   120000,
-								Currency: "EUR",
-							},
-						},
-						"coffee": {
-							{
-								Date:     today,
-								Amount:   1200000,
-								Currency: "RUB",
-							},
-						},
-					}, nil)
-					return m
-				},
-			},
-			want: map[string][]types.ExpenseItem{
-				"taxi": {
-					{
-						Date:     today,
-						Amount:   100000,
-						Currency: "USD",
-					},
-					{
-						Date:     today,
-						Amount:   120000,
-						Currency: "EUR",
-					},
-				},
-				"coffee": {
-					{
-						Date:     today,
-						Amount:   1200000,
-						Currency: "RUB",
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := NewExpenser(tt.fields.storage())
-			data, err := e.Report(testUser, today)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Report() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(data, tt.want) {
-				t.Errorf("Report() data = %v, want %v", data, tt.want)
-			}
 		})
-	}
+
+		// ACT
+		data, err := e.Report(context.Background(), testUser, today)
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Empty(t, data)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		// ARRANGE
+		e := setupExpenser(t, mocksInitializer{
+			storage: func(m *mocks.MockExpenseStorage) {
+				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser, today).Return(map[string][]types.ExpenseItem{
+					"taxi": {
+						{
+							Date:     today,
+							Amount:   100000,
+							Currency: "USD",
+						},
+						{
+							Date:     today,
+							Amount:   120000,
+							Currency: "EUR",
+						},
+					},
+					"coffee": {
+						{
+							Date:     today,
+							Amount:   1200000,
+							Currency: "RUB",
+						},
+					},
+				}, nil)
+			},
+		})
+
+		// ACT
+		data, err := e.Report(context.Background(), testUser, today)
+
+		// ASSERT
+		assert.NoError(t, err)
+		assert.Equal(t, map[string][]types.ExpenseItem{
+			"taxi": {
+				{
+					Date:     today,
+					Amount:   100000,
+					Currency: "USD",
+				},
+				{
+					Date:     today,
+					Amount:   120000,
+					Currency: "EUR",
+				},
+			},
+			"coffee": {
+				{
+					Date:     today,
+					Amount:   1200000,
+					Currency: "RUB",
+				},
+			},
+		}, data)
+	})
 }

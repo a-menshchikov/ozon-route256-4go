@@ -5,20 +5,23 @@ import (
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type pgCurrencyStorage struct {
-	ctx context.Context
-	db  pgxtype.Querier
+	db pgxtype.Querier
 }
 
-func (s *pgCurrencyStorage) Get(user *types.User) (string, bool, error) {
+func (s *pgCurrencyStorage) Get(ctx context.Context, user *types.User) (string, bool, error) {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgCurrencyStorage.Get")
+	defer span.Finish()
+
 	var value string
 
 	err := s.db.QueryRow(
-		s.ctx,
+		ctx,
 		`select code
          from currencies
          where user_id = $1`,
@@ -33,9 +36,12 @@ func (s *pgCurrencyStorage) Get(user *types.User) (string, bool, error) {
 	return value, true, nil
 }
 
-func (s *pgCurrencyStorage) Set(user *types.User, value string) error {
+func (s *pgCurrencyStorage) Set(ctx context.Context, user *types.User, value string) error {
+	span, _ := opentracing.StartSpanFromContext(ctx, "pgCurrencyStorage.Set")
+	defer span.Finish()
+
 	_, err := s.db.Exec(
-		s.ctx,
+		ctx,
 		`insert into currencies (user_id, code)
          values ($1, $2)
            on conflict (user_id)

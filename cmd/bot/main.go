@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cmd/bot"
+	"go.uber.org/zap"
 )
 
 var (
@@ -33,7 +34,7 @@ func main() {
 
 	cmd := bot.NewCommand(filepath.Base(os.Args[0]), buildVersion())
 	if err := cmd.ExecuteContext(ctx); err != nil {
-		log.Fatal(err)
+		log.Fatal("command failed", zap.Error(err))
 	}
 }
 

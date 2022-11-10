@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"sort"
 	"strconv"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
@@ -18,6 +18,7 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
+	"go.uber.org/zap"
 )
 
 const (
@@ -44,9 +45,10 @@ type client struct {
 	api        api
 	storage    storage.TelegramUserStorage
 	controller model.Controller
+	logger     *zap.Logger
 }
 
-func NewClient(token string, s storage.TelegramUserStorage) (*client, error) {
+func NewClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (*client, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewBotAPI")
@@ -55,6 +57,7 @@ func NewClient(token string, s storage.TelegramUserStorage) (*client, error) {
 	return &client{
 		api:     api,
 		storage: s,
+		logger:  l,
 	}, nil
 }
 
@@ -70,7 +73,7 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = _updateTimeout
 
-	log.Println("listening for messages")
+	c.logger.Info("listening for messages")
 
 	updates := c.api.GetUpdatesChan(u)
 
@@ -81,20 +84,23 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 
 		case update := <-updates:
 			if update.Message != nil {
-				c.handleMessage(update.Message)
+				c.handleMessage(ctx, update.Message)
 			} else if update.CallbackQuery != nil {
-				c.handleCallback(update.CallbackQuery)
+				c.handleCallback(ctx, update.CallbackQuery)
 			}
 		}
 	}
 }
 
-func (c *client) handleMessage(message *tgbotapi.Message) {
-	log.Printf("[%s] message: %s", message.From.UserName, message.Text)
+func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
+	start := time.Now()
+	span, ctx := opentracing.StartSpanFromContext(ctx, "message")
 
-	user, err := c.resolveUser(message.From)
+	c.logger.Debug("tg message", zap.String("username", message.From.UserName), zap.String("text", message.Text))
+
+	user, err := c.resolveUser(ctx, message.From)
 	if err != nil {
-		log.Println("cannot resolve user:", err)
+		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(message.From.ID, emergencyMessage)
 		return
 	}
@@ -102,57 +108,78 @@ func (c *client) handleMessage(message *tgbotapi.Message) {
 	command := message.Command()
 	text := unknownCommandMessage
 
+	defer func() {
+		span.SetTag("command", command)
+		span.Finish()
+
+		_commandResponseTime.WithLabelValues(command).Observe(time.Since(start).Seconds())
+		_commandCount.WithLabelValues(command).Inc()
+	}()
+
 	if command == "currency" {
-		text, keyboard := c.handleCurrency(user)
+		text, keyboard := c.handleCurrency(ctx, user)
 		c.sendMessageWithInlineKeyboard(message.From.ID, text, keyboard)
 		return
 	}
 
-	handler, ok := map[string]func(*types.User, string) string{
-		"start":  func(*types.User, string) string { return helloMessage },
+	handler, ok := map[string]func(context.Context, *types.User, string) string{
+		"start":  func(context.Context, *types.User, string) string { return helloMessage },
 		"limit":  c.handleLimit,
 		"add":    c.handleAdd,
 		"report": c.handleReport,
 	}[command]
 
 	if ok {
-		text = handler(user, strings.TrimSpace(message.CommandArguments()))
+		args := strings.TrimSpace(message.CommandArguments())
+		span.SetTag("args", args)
+		text = handler(ctx, user, args)
+	} else {
+		command = "UNKNOWN"
 	}
 
 	c.sendMessage(message.From.ID, text)
 }
 
-func (c *client) handleCallback(callbackQuery *tgbotapi.CallbackQuery) {
-	log.Printf("[%s] callback: %s", callbackQuery.From.UserName, callbackQuery.Data)
+func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.CallbackQuery) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "callback", opentracing.Tags{"command": "set-currency"})
+	defer span.Finish()
 
-	user, err := c.resolveUser(callbackQuery.From)
+	c.logger.Debug("tg callback", zap.String("username", callbackQuery.From.UserName), zap.String("data", callbackQuery.Data))
+
+	user, err := c.resolveUser(ctx, callbackQuery.From)
 	if err != nil {
-		log.Println("cannot resolve user:", err)
+		c.logger.Error("cannot resolve user", zap.Error(err))
 		c.sendMessage(callbackQuery.From.ID, emergencyMessage)
 		return
 	}
 
-	text, ok := c.handleCurrencyCallback(user, callbackQuery.Data)
+	start := time.Now()
+	defer func() {
+		_commandResponseTime.WithLabelValues("set-currency").Observe(time.Since(start).Seconds())
+		_commandCount.WithLabelValues("set-currency").Inc()
+	}()
+
+	text, ok := c.handleCurrencyCallback(ctx, user, callbackQuery.Data)
 	if ok {
 		callback := tgbotapi.NewCallback(callbackQuery.ID, callbackQuery.Data)
 		if _, err := c.api.Request(callback); err != nil {
-			log.Println("error processing callback: ", err)
+			c.logger.Error("callback processing failed", zap.Error(err))
 		}
 	}
 
 	c.sendMessage(callbackQuery.From.ID, text)
 }
 
-func (c *client) handleCurrency(user *types.User) (string, [][][]string) {
-	resp := c.controller.ListCurrencies(request.ListCurrencies{
+func (c *client) handleCurrency(ctx context.Context, user *types.User) (string, [][][]string) {
+	resp := c.controller.ListCurrencies(ctx, request.ListCurrencies{
 		User: user,
 	})
 
 	return currencyCurrentMessage + resp.Current + "\n\n" + currencyChooseMessage, prepareCurrenciesKeyboard(resp.List)
 }
 
-func (c *client) handleCurrencyCallback(user *types.User, currency string) (string, bool) {
-	if c.controller.SetCurrency(request.SetCurrency{
+func (c *client) handleCurrencyCallback(ctx context.Context, user *types.User, currency string) (string, bool) {
+	if c.controller.SetCurrency(ctx, request.SetCurrency{
 		User: user,
 		Code: currency,
 	}) {
@@ -162,9 +189,9 @@ func (c *client) handleCurrencyCallback(user *types.User, currency string) (stri
 	return errorMessage(nil, "Не удалось сменить текущую валюту.", currencyHelpMessage), false
 }
 
-func (c *client) handleLimit(user *types.User, args string) string {
+func (c *client) handleLimit(ctx context.Context, user *types.User, args string) string {
 	if args == "" {
-		return renderLimits(c.controller.ListLimits(request.ListLimits{
+		return renderLimits(c.controller.ListLimits(ctx, request.ListLimits{
 			User: user,
 		}))
 	}
@@ -175,7 +202,7 @@ func (c *client) handleLimit(user *types.User, args string) string {
 	}
 
 	limit, err := strconv.ParseInt(limitStr, 10, 64)
-	if err == nil && c.controller.SetLimit(request.SetLimit{
+	if err == nil && c.controller.SetLimit(ctx, request.SetLimit{
 		User:     user,
 		Value:    limit * 10000,
 		Category: strings.TrimSpace(category),
@@ -238,7 +265,7 @@ func renderLimitRow(item response.LimitItem, currency string) (row string) {
 	return
 }
 
-func (c *client) handleAdd(user *types.User, args string) string {
+func (c *client) handleAdd(ctx context.Context, user *types.User, args string) string {
 	m := _addRx.FindStringSubmatch(args)
 	if len(m) == 0 {
 		return errorMessage(nil, "Не удалось добавить расход.", addHelpMessage)
@@ -246,7 +273,7 @@ func (c *client) handleAdd(user *types.User, args string) string {
 
 	date, amount, category, err := parseAddArgs(m[1:])
 	if err == nil {
-		resp := c.controller.AddExpense(request.AddExpense{
+		resp := c.controller.AddExpense(ctx, request.AddExpense{
 			User:     user,
 			Date:     date,
 			Amount:   amount,
@@ -312,7 +339,7 @@ func parseDate(input string) (time.Time, error) {
 	return date, nil
 }
 
-func (c *client) handleReport(user *types.User, args string) string {
+func (c *client) handleReport(ctx context.Context, user *types.User, args string) string {
 	var (
 		from time.Time
 		err  error
@@ -326,7 +353,7 @@ func (c *client) handleReport(user *types.User, args string) string {
 		return errorMessage(err, "Не удалось сформировать отчёт.", reportHelpMessage)
 	}
 
-	resp := c.controller.GetReport(request.GetReport{
+	resp := c.controller.GetReport(ctx, request.GetReport{
 		User: user,
 		From: from,
 	})
@@ -380,7 +407,7 @@ func (c *client) sendMessage(chatID int64, text string) {
 
 	_, err := c.api.Send(message)
 	if err != nil {
-		log.Println("cannot send telegram message:", err)
+		c.logger.Error("cannot send telegram message", zap.Error(err))
 	}
 }
 
@@ -393,7 +420,7 @@ func (c *client) sendMessageWithInlineKeyboard(chatID int64, text string, rowsDa
 		var row []tgbotapi.InlineKeyboardButton
 		for j, button := range rowData {
 			if len(button) != 2 {
-				log.Println(fmt.Errorf("invalid keyboard button (row %d, button %d)", i, j))
+				c.logger.Error(fmt.Sprintf("invalid keyboard button (row %d, button %d)", i, j))
 			}
 
 			row = append(row, tgbotapi.NewInlineKeyboardButtonData(button[0], button[1]))
@@ -406,7 +433,7 @@ func (c *client) sendMessageWithInlineKeyboard(chatID int64, text string, rowsDa
 
 	_, err := c.api.Send(message)
 	if err != nil {
-		log.Println("cannot send telegram message (with inline keyboard):", err)
+		c.logger.Error("cannot send telegram message (with inline keyboard)", zap.Error(err))
 	}
 }
 
@@ -426,10 +453,10 @@ func prepareCurrenciesKeyboard(currencies []string) [][][]string {
 	return keyboard
 }
 
-func (c *client) resolveUser(tgUser *tgbotapi.User) (*types.User, error) {
-	if user, err := c.storage.FetchByID(tgUser.ID); err == nil {
+func (c *client) resolveUser(ctx context.Context, tgUser *tgbotapi.User) (*types.User, error) {
+	if user, err := c.storage.FetchByID(ctx, tgUser.ID); err == nil {
 		return user, nil
 	}
 
-	return c.storage.Add(tgUser.ID)
+	return c.storage.Add(ctx, tgUser.ID)
 }

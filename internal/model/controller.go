@@ -2,49 +2,50 @@ package model
 
 import (
 	"context"
-	"log"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
+	"go.uber.org/zap"
 )
 
 type Controller interface {
-	ListCurrencies(request.ListCurrencies) response.ListCurrencies
-	SetCurrency(request.SetCurrency) response.SetCurrency
+	ListCurrencies(ctx context.Context, req request.ListCurrencies) response.ListCurrencies
+	SetCurrency(ctx context.Context, req request.SetCurrency) response.SetCurrency
 
-	ListLimits(request.ListLimits) response.ListLimits
-	SetLimit(request.SetLimit) response.SetLimit
+	ListLimits(ctx context.Context, req request.ListLimits) response.ListLimits
+	SetLimit(ctx context.Context, req request.SetLimit) response.SetLimit
 
-	AddExpense(request.AddExpense) response.AddExpense
+	AddExpense(ctx context.Context, req request.AddExpense) response.AddExpense
 
-	GetReport(request.GetReport) response.GetReport
+	GetReport(ctx context.Context, req request.GetReport) response.GetReport
 }
 
 type expenser interface {
-	Add(user *types.User, date time.Time, amount int64, currency, category string) error
-	Report(user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
+	Add(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error
+	Report(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
 }
 
 type limiter interface {
-	Get(user *types.User, category string) (types.LimitItem, error)
-	Set(user *types.User, limit int64, currency, category string) error
-	Decrease(user *types.User, value int64, category string) (bool, error)
-	Unset(user *types.User, category string) error
-	List(user *types.User) (map[string]types.LimitItem, error)
+	Get(ctx context.Context, user *types.User, category string) (types.LimitItem, error)
+	Set(ctx context.Context, user *types.User, limit int64, currency, category string) error
+	Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error)
+	Unset(ctx context.Context, user *types.User, category string) error
+	List(ctx context.Context, user *types.User) (map[string]types.LimitItem, error)
 }
 
 type rater interface {
-	Run(ctx context.Context)
+	Run(ctx context.Context) error
 	Ready() bool
-	Exchange(value int64, from, to string, date time.Time) (int64, error)
+	Exchange(ctx context.Context, value int64, from, to string, date time.Time) (int64, error)
 }
 
 type currencyManager interface {
-	Get(user *types.User) (string, error)
-	Set(user *types.User, currency string) error
+	Get(ctx context.Context, user *types.User) (string, error)
+	Set(ctx context.Context, user *types.User, currency string) error
 	ListCurrenciesCodesWithFlags() []string
 }
 
@@ -53,19 +54,24 @@ type controller struct {
 	limiter         limiter
 	currencyManager currencyManager
 	rater           rater
+	logger          *zap.Logger
 }
 
-func NewController(e expenser, l limiter, c currencyManager, r rater) *controller {
+func NewController(e expenser, l limiter, c currencyManager, r rater, logger *zap.Logger) *controller {
 	return &controller{
 		expenser:        e,
 		limiter:         l,
 		currencyManager: c,
 		rater:           r,
+		logger:          logger,
 	}
 }
 
-func (c *controller) ListCurrencies(req request.ListCurrencies) (resp response.ListCurrencies) {
-	currency, ok := c.resolveUserCurrency(req.User)
+func (c *controller) ListCurrencies(ctx context.Context, req request.ListCurrencies) (resp response.ListCurrencies) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.ListCurrencies")
+	defer span.Finish()
+
+	currency, ok := c.resolveUserCurrency(ctx, req.User)
 	if ok {
 		resp.Current = currency
 		resp.List = c.currencyManager.ListCurrenciesCodesWithFlags()
@@ -74,9 +80,12 @@ func (c *controller) ListCurrencies(req request.ListCurrencies) (resp response.L
 	return
 }
 
-func (c *controller) SetCurrency(req request.SetCurrency) (resp response.SetCurrency) {
-	if err := c.currencyManager.Set(req.User, req.Code); err != nil {
-		logHandleError("cannot set user currency:", err, req)
+func (c *controller) SetCurrency(ctx context.Context, req request.SetCurrency) (resp response.SetCurrency) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.SetCurrency")
+	defer span.Finish()
+
+	if err := c.currencyManager.Set(ctx, req.User, req.Code); err != nil {
+		c.logger.Error("cannot set user currency", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -84,22 +93,25 @@ func (c *controller) SetCurrency(req request.SetCurrency) (resp response.SetCurr
 	return
 }
 
-func (c *controller) ListLimits(req request.ListLimits) (resp response.ListLimits) {
+func (c *controller) ListLimits(ctx context.Context, req request.ListLimits) (resp response.ListLimits) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.ListLimits")
+	defer span.Finish()
+
 	resp.Ready = c.rater.Ready()
 	if !resp.Ready {
 		return
 	}
 
-	currency, ok := c.resolveUserCurrency(req.User)
+	currency, ok := c.resolveUserCurrency(ctx, req.User)
 	if !ok {
 		return
 	}
 
 	resp.CurrentCurrency = currency
 
-	limits, err := c.limiter.List(req.User)
+	limits, err := c.limiter.List(ctx, req.User)
 	if err != nil {
-		logHandleError("cannot get user limits:", err, req)
+		c.logger.Error("cannot get user limits", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -110,13 +122,13 @@ func (c *controller) ListLimits(req request.ListLimits) (resp response.ListLimit
 		origin := limits[category]
 		item := response.LimitItem{Origin: origin}
 
-		if item.Total, err = c.rater.Exchange(origin.Total, origin.Currency, currency, today); err != nil {
-			logHandleError("cannot exchange currency:", err, origin.Currency, currency)
+		if item.Total, err = c.rater.Exchange(ctx, origin.Total, origin.Currency, currency, today); err != nil {
+			c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", origin.Currency), zap.String("to", currency))
 			return
 		}
 
-		if item.Remains, err = c.rater.Exchange(origin.Remains, origin.Currency, currency, today); err != nil {
-			logHandleError("cannot exchange currency:", err, origin.Currency, currency)
+		if item.Remains, err = c.rater.Exchange(ctx, origin.Remains, origin.Currency, currency, today); err != nil {
+			c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", origin.Currency), zap.String("to", currency))
 			return
 		}
 
@@ -129,22 +141,25 @@ func (c *controller) ListLimits(req request.ListLimits) (resp response.ListLimit
 	return
 }
 
-func (c *controller) SetLimit(req request.SetLimit) response.SetLimit {
-	currency, ok := c.resolveUserCurrency(req.User)
+func (c *controller) SetLimit(ctx context.Context, req request.SetLimit) response.SetLimit {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.SetLimit")
+	defer span.Finish()
+
+	currency, ok := c.resolveUserCurrency(ctx, req.User)
 	if !ok {
 		return false
 	}
 
 	if req.Value == 0 {
-		err := c.limiter.Unset(req.User, req.Category)
+		err := c.limiter.Unset(ctx, req.User, req.Category)
 		if err != nil {
-			logHandleError("cannot unset user limit:", err, req)
+			c.logger.Error("cannot unset user limit", zap.Error(err), zap.Object("request", req))
 			return false
 		}
 	} else {
-		err := c.limiter.Set(req.User, req.Value, currency, req.Category)
+		err := c.limiter.Set(ctx, req.User, req.Value, currency, req.Category)
 		if err != nil {
-			logHandleError("cannot set user limit:", err, req)
+			c.logger.Error("cannot set user limit", zap.Error(err), zap.Object("request", req))
 			return false
 		}
 	}
@@ -152,27 +167,30 @@ func (c *controller) SetLimit(req request.SetLimit) response.SetLimit {
 	return true
 }
 
-func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpense) {
+func (c *controller) AddExpense(ctx context.Context, req request.AddExpense) (resp response.AddExpense) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.AddExpense")
+	defer span.Finish()
+
 	resp.Ready = c.rater.Ready()
 	if !resp.Ready {
 		return
 	}
 
-	currency, ok := c.resolveUserCurrency(req.User)
+	currency, ok := c.resolveUserCurrency(ctx, req.User)
 	if !ok {
 		return
 	}
 
-	if err := c.expenser.Add(req.User, req.Date, req.Amount, currency, req.Category); err != nil {
-		logHandleError("cannot add expense:", err, req)
+	if err := c.expenser.Add(ctx, req.User, req.Date, req.Amount, currency, req.Category); err != nil {
+		c.logger.Error("cannot add expense", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
 	resp.Success = true
 
-	limit, err := c.limiter.Get(req.User, req.Category)
+	limit, err := c.limiter.Get(ctx, req.User, req.Category)
 	if err != nil {
-		logHandleError("cannot get user limit:", err, req)
+		c.logger.Error("cannot get user limit", zap.Error(err), zap.Object("request", req))
 		return
 	}
 
@@ -180,15 +198,15 @@ func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpens
 		return
 	}
 
-	limitRetention, err := c.rater.Exchange(req.Amount, currency, limit.Currency, utils.TruncateToDate(req.Date))
+	limitRetention, err := c.rater.Exchange(ctx, req.Amount, currency, limit.Currency, utils.TruncateToDate(req.Date))
 	if err != nil {
-		logHandleError("cannot exchange currency:", err, currency, limit.Currency)
+		c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", currency), zap.String("to", limit.Currency))
 		return
 	}
 
-	reached, err := c.limiter.Decrease(req.User, limitRetention, req.Category)
+	reached, err := c.limiter.Decrease(ctx, req.User, limitRetention, req.Category)
 	if err != nil {
-		logHandleError("cannot decrease limit:", err, currency, limit)
+		c.logger.Error("cannot decrease limit", zap.Error(err), zap.String("currency", currency), zap.Object("limit", limit))
 		return
 	}
 
@@ -196,7 +214,10 @@ func (c *controller) AddExpense(req request.AddExpense) (resp response.AddExpens
 	return
 }
 
-func (c *controller) GetReport(req request.GetReport) response.GetReport {
+func (c *controller) GetReport(ctx context.Context, req request.GetReport) response.GetReport {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "controller.GetReport")
+	defer span.Finish()
+
 	resp := response.GetReport{
 		From:  req.From,
 		Ready: c.rater.Ready(),
@@ -206,16 +227,16 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 		return resp
 	}
 
-	currency, ok := c.resolveUserCurrency(req.User)
+	currency, ok := c.resolveUserCurrency(ctx, req.User)
 	if !ok {
 		return resp
 	}
 
 	resp.Currency = currency
 
-	report, err := c.expenser.Report(req.User, req.From)
+	report, err := c.expenser.Report(ctx, req.User, req.From)
 	if err != nil {
-		logHandleError("cannot get expenses list:", err, req)
+		c.logger.Error("cannot get expenses list", zap.Error(err), zap.Object("request", req))
 		return resp
 	}
 
@@ -223,9 +244,9 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 
 	for category := range report {
 		for _, item := range report[category] {
-			amount, err := c.rater.Exchange(item.Amount, item.Currency, resp.Currency, item.Date)
+			amount, err := c.rater.Exchange(ctx, item.Amount, item.Currency, resp.Currency, item.Date)
 			if err != nil {
-				logHandleError("cannot exchange currency", err, item.Currency, resp.Currency)
+				c.logger.Error("cannot exchange currency", zap.Error(err), zap.String("from", item.Currency), zap.String("to", resp.Currency))
 				return resp
 			}
 
@@ -239,16 +260,12 @@ func (c *controller) GetReport(req request.GetReport) response.GetReport {
 	return resp
 }
 
-func (c *controller) resolveUserCurrency(user *types.User) (string, bool) {
-	currency, err := c.currencyManager.Get(user)
+func (c *controller) resolveUserCurrency(ctx context.Context, user *types.User) (string, bool) {
+	currency, err := c.currencyManager.Get(ctx, user)
 	if err != nil {
-		logHandleError("cannot get user currency:", err)
+		c.logger.Error("cannot get user currency", zap.Error(err), zap.Int64("user", int64(*user)))
 		return "", false
 	}
 
 	return currency, true
-}
-
-func logHandleError(prefix string, err error, rest ...interface{}) {
-	log.Println(prefix, err, rest)
 }
