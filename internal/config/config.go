@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Client   ClientConfig   `yaml:"client"`
 	Storage  StorageConfig  `yaml:"storage"`
+	Cache    CacheConfig    `yaml:"cache"`
 	Currency CurrencyConfig `yaml:"currency"`
 }
 

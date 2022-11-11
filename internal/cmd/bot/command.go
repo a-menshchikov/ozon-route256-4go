@@ -8,6 +8,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jaegierconfig "github.com/uber/jaeger-client-go/config"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache/redis"
 	tgclient "gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/telegram"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency"
@@ -29,18 +31,20 @@ const (
 	_defaultMetricsPort = 8084
 )
 
-type storageFactory interface {
-	CreateTelegramUserStorage() storage.TelegramUserStorage
-	CreateExpenseStorage() storage.ExpenseStorage
-	CreateLimitStorage() storage.ExpenseLimitStorage
-	CreateCurrencyStorage() storage.CurrencyStorage
-	CreateRatesStorage() storage.CurrencyRatesStorage
-}
+type (
+	storageFactory interface {
+		CreateTelegramUserStorage() storage.TelegramUserStorage
+		CreateExpenseStorage() storage.ExpenseStorage
+		CreateLimitStorage() storage.ExpenseLimitStorage
+		CreateCurrencyStorage() storage.CurrencyStorage
+		CreateRatesStorage() storage.CurrencyRatesStorage
+	}
 
-type client interface {
-	RegisterController(model.Controller)
-	ListenUpdates(ctx context.Context) error
-}
+	client interface {
+		RegisterController(model.Controller)
+		ListenUpdates(ctx context.Context) error
+	}
+)
 
 func NewCommand(name, version string) *cobra.Command {
 	var (
@@ -81,8 +85,18 @@ func NewCommand(name, version string) *cobra.Command {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
+			ratesCache, err := newCache(ctx, cfg.Cache.Rates, logger)
+			if err != nil {
+				return errors.Wrap(err, "report cache init failed")
+			}
+
+			reportCache, err := newCache(ctx, cfg.Cache.Report, logger)
+			if err != nil {
+				return errors.Wrap(err, "report cache init failed")
+			}
+
 			metricsServer := metrics.NewServer(uint16(metricsPort), logger)
-			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), cbr.NewGateway(http.DefaultClient), logger)
+			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), ratesCache, cbr.NewGateway(http.DefaultClient), logger)
 
 			g.Go(func() error { return metricsServer.Run(ctx) })
 			g.Go(func() error { return rater.Run(ctx) })
@@ -91,6 +105,7 @@ func NewCommand(name, version string) *cobra.Command {
 				expense.NewExpenser(storageFactory.CreateExpenseStorage()),
 				limit.NewLimiter(storageFactory.CreateLimitStorage()),
 				currency.NewManager(cfg.Currency, storageFactory.CreateCurrencyStorage()),
+				reportCache,
 				rater,
 				logger,
 			)
@@ -159,16 +174,28 @@ func initTracing(serviceName string) error {
 	return err
 }
 
-func newStorageFactory(ctx context.Context, storageConfig config.StorageConfig, logger *zap.Logger) (storageFactory, error) {
-	switch storageConfig.Driver {
+func newStorageFactory(ctx context.Context, cfg config.StorageConfig, logger *zap.Logger) (storageFactory, error) {
+	switch cfg.Driver {
 	case config.InMemoryDriver:
 		return inmemory.NewFactory(), nil
 
 	case config.PostgreSQLDriver:
-		return postgresql.NewFactory(ctx, storageConfig.Dsn, storageConfig.WaitTimeout, logger)
+		return postgresql.NewFactory(ctx, cfg.Dsn, cfg.WaitTimeout, logger)
 	}
 
 	return nil, errors.New("unknown storage driver")
+}
+
+func newCache(ctx context.Context, cfg config.CacheSectionConfig, logger *zap.Logger) (cache.Cache, error) {
+	switch cfg.Driver {
+	case config.RedisDriver:
+		return redis.NewCache(ctx, cfg.Dsn, logger)
+
+	case "":
+		return nil, nil
+	}
+
+	return nil, errors.New("unknown cache driver")
 }
 
 func newTelegramClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (client, error) {

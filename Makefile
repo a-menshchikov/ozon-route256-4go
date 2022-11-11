@@ -43,6 +43,7 @@ generate: install-mockgen
 	${MOCKGEN} -source=internal/currency/rates/rates.go -destination=internal/mocks/currency/rates/rates_mock.go
 	${MOCKGEN} -source=internal/model/controller.go -destination=internal/mocks/model/controller_mock.go
 	${MOCKGEN} -source=internal/storage/types.go -destination=internal/mocks/storage/types_mock.go
+	${MOCKGEN} -source=internal/cache/types.go -destination=internal/mocks/cache/types_mock.go
 
 lint: install-lint
 	${LINTBIN} run

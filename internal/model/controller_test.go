@@ -2,6 +2,8 @@ package model
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
+	cmocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/cache"
 	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/model"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
@@ -30,6 +33,7 @@ type mocksInitializer struct {
 	expenser        func(m *mocks.Mockexpenser)
 	limiter         func(m *mocks.Mocklimiter)
 	currencyManager func(m *mocks.MockcurrencyManager)
+	cache           func(cache *cmocks.MockCache)
 	rater           func(m *mocks.Mockrater)
 }
 
@@ -51,12 +55,17 @@ func setupController(t *testing.T, i mocksInitializer) *controller {
 		i.currencyManager(currencyManagerMock)
 	}
 
+	cacheMock := cmocks.NewMockCache(ctrl)
+	if i.cache != nil {
+		i.cache(cacheMock)
+	}
+
 	raterMock := mocks.NewMockrater(ctrl)
 	if i.rater != nil {
 		i.rater(raterMock)
 	}
 
-	return NewController(expenserMock, limiterMock, currencyManagerMock, raterMock, zap.NewNop())
+	return NewController(expenserMock, limiterMock, currencyManagerMock, cacheMock, raterMock, zap.NewNop())
 }
 
 func Test_controller_ListCurrencies(t *testing.T) {
@@ -566,6 +575,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("USD", nil)
 			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
+			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
 			},
@@ -601,6 +613,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			},
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("USD", nil)
+			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
 			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
@@ -639,6 +654,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			},
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("EUR", nil)
+			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
 			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
@@ -680,6 +698,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("RUB", nil)
 			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
+			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
 				m.EXPECT().Exchange(gomock.AssignableToTypeOf(ctxInterface), int64(2000000), "RUB", "USD", today).Return(int64(40000), nil)
@@ -719,6 +740,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			},
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("RUB", nil)
+			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
 			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
@@ -761,6 +785,9 @@ func Test_controller_AddExpense(t *testing.T) {
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("RUB", nil)
 			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().DeleteByPattern(fmt.Sprintf("report_%d_*", testUser)).Return(nil)
+			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
 				m.EXPECT().Exchange(gomock.AssignableToTypeOf(ctxInterface), int64(1000000), "RUB", "USD", today).Return(int64(20000), nil)
@@ -785,13 +812,13 @@ func Test_controller_AddExpense(t *testing.T) {
 }
 
 func Test_controller_GetReport(t *testing.T) {
-	t.Run("not ready", func(t *testing.T) {
+	t.Run("no currency", func(t *testing.T) {
 		t.Parallel()
 
 		// ARRANGE
 		controller := setupController(t, mocksInitializer{
-			rater: func(m *mocks.Mockrater) {
-				m.EXPECT().Ready().Return(false)
+			currencyManager: func(m *mocks.MockcurrencyManager) {
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("", simpleError)
 			},
 		})
 
@@ -808,16 +835,16 @@ func Test_controller_GetReport(t *testing.T) {
 		}, resp)
 	})
 
-	t.Run("no currency", func(t *testing.T) {
+	t.Run("not ready", func(t *testing.T) {
 		t.Parallel()
 
 		// ARRANGE
 		controller := setupController(t, mocksInitializer{
 			currencyManager: func(m *mocks.MockcurrencyManager) {
-				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("", simpleError)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("RUB", nil)
 			},
 			rater: func(m *mocks.Mockrater) {
-				m.EXPECT().Ready().Return(true)
+				m.EXPECT().Ready().Return(false)
 			},
 		})
 
@@ -829,8 +856,9 @@ func Test_controller_GetReport(t *testing.T) {
 
 		// ASSERT
 		assert.Equal(t, response.GetReport{
-			From:  today,
-			Ready: true,
+			From:     today,
+			Currency: "RUB",
+			Ready:    false,
 		}, resp)
 	})
 
@@ -844,6 +872,9 @@ func Test_controller_GetReport(t *testing.T) {
 			},
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("RUB", nil)
+			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().Get(fmt.Sprintf("report_%d_RUB_%s", testUser, today)).Return("", false)
 			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
@@ -859,8 +890,8 @@ func Test_controller_GetReport(t *testing.T) {
 		// ASSERT
 		assert.Equal(t, response.GetReport{
 			From:     today,
-			Ready:    true,
 			Currency: "RUB",
+			Ready:    true,
 		}, resp)
 	})
 
@@ -868,6 +899,17 @@ func Test_controller_GetReport(t *testing.T) {
 		t.Parallel()
 
 		// ARRANGE
+		expectedResp := response.GetReport{
+			From:     today,
+			Currency: "USD",
+			Ready:    true,
+			Data: map[string]int64{
+				"coffee": 20000,
+				"taxi":   130000,
+			},
+			Success: true,
+		}
+
 		controller := setupController(t, mocksInitializer{
 			expenser: func(m *mocks.Mockexpenser) {
 				m.EXPECT().Report(gomock.AssignableToTypeOf(ctxInterface), testUser, today).Return(map[string][]types.ExpenseItem{
@@ -895,6 +937,10 @@ func Test_controller_GetReport(t *testing.T) {
 			currencyManager: func(m *mocks.MockcurrencyManager) {
 				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("USD", nil)
 			},
+			cache: func(m *cmocks.MockCache) {
+				m.EXPECT().Get(fmt.Sprintf("report_%d_USD_%s", testUser, today)).Return("", false)
+				m.EXPECT().Set(fmt.Sprintf("report_%d_USD_%s", testUser, today), expectedResp).Return(nil)
+			},
 			rater: func(m *mocks.Mockrater) {
 				m.EXPECT().Ready().Return(true)
 				m.EXPECT().Exchange(gomock.AssignableToTypeOf(ctxInterface), int64(1000000), "RUB", "USD", today).Return(int64(20000), nil)
@@ -910,15 +956,44 @@ func Test_controller_GetReport(t *testing.T) {
 		})
 
 		// ASSERT
-		assert.Equal(t, response.GetReport{
+		assert.Equal(t, expectedResp, resp)
+	})
+
+	t.Run("success from cache", func(t *testing.T) {
+		t.Parallel()
+
+		// ARRANGE
+		expectedResp := response.GetReport{
 			From:     today,
-			Ready:    true,
 			Currency: "USD",
+			Ready:    true,
 			Data: map[string]int64{
-				"coffee": 20000,
-				"taxi":   130000,
+				"coffee":  50000,
+				"concert": 200000,
 			},
 			Success: true,
-		}, resp)
+		}
+
+		controller := setupController(t, mocksInitializer{
+			currencyManager: func(m *mocks.MockcurrencyManager) {
+				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser).Return("USD", nil)
+			},
+			cache: func(m *cmocks.MockCache) {
+				data, _ := json.Marshal(expectedResp)
+				m.EXPECT().Get(fmt.Sprintf("report_%d_USD_%s", testUser, today)).Return(string(data), true)
+			},
+			rater: func(m *mocks.Mockrater) {
+				m.EXPECT().Ready().Return(true)
+			},
+		})
+
+		// ACT
+		resp := controller.GetReport(context.Background(), request.GetReport{
+			User: testUser,
+			From: today,
+		})
+
+		// ASSERT
+		assert.Equal(t, expectedResp, resp)
 	})
 }

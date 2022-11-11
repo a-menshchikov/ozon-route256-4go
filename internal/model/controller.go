@@ -2,9 +2,11 @@ package model
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/request"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/dto/response"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
@@ -12,58 +14,66 @@ import (
 	"go.uber.org/zap"
 )
 
-type Controller interface {
-	ListCurrencies(ctx context.Context, req request.ListCurrencies) response.ListCurrencies
-	SetCurrency(ctx context.Context, req request.SetCurrency) response.SetCurrency
+const (
+	_cachePrefix = "report"
+)
 
-	ListLimits(ctx context.Context, req request.ListLimits) response.ListLimits
-	SetLimit(ctx context.Context, req request.SetLimit) response.SetLimit
+type (
+	Controller interface {
+		ListCurrencies(ctx context.Context, req request.ListCurrencies) response.ListCurrencies
+		SetCurrency(ctx context.Context, req request.SetCurrency) response.SetCurrency
 
-	AddExpense(ctx context.Context, req request.AddExpense) response.AddExpense
+		ListLimits(ctx context.Context, req request.ListLimits) response.ListLimits
+		SetLimit(ctx context.Context, req request.SetLimit) response.SetLimit
 
-	GetReport(ctx context.Context, req request.GetReport) response.GetReport
-}
+		AddExpense(ctx context.Context, req request.AddExpense) response.AddExpense
 
-type expenser interface {
-	Add(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error
-	Report(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
-}
+		GetReport(ctx context.Context, req request.GetReport) response.GetReport
+	}
 
-type limiter interface {
-	Get(ctx context.Context, user *types.User, category string) (types.LimitItem, error)
-	Set(ctx context.Context, user *types.User, limit int64, currency, category string) error
-	Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error)
-	Unset(ctx context.Context, user *types.User, category string) error
-	List(ctx context.Context, user *types.User) (map[string]types.LimitItem, error)
-}
+	expenser interface {
+		Add(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error
+		Report(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error)
+	}
 
-type rater interface {
-	Run(ctx context.Context) error
-	Ready() bool
-	Exchange(ctx context.Context, value int64, from, to string, date time.Time) (int64, error)
-}
+	limiter interface {
+		Get(ctx context.Context, user *types.User, category string) (types.LimitItem, error)
+		Set(ctx context.Context, user *types.User, limit int64, currency, category string) error
+		Decrease(ctx context.Context, user *types.User, value int64, category string) (bool, error)
+		Unset(ctx context.Context, user *types.User, category string) error
+		List(ctx context.Context, user *types.User) (map[string]types.LimitItem, error)
+	}
 
-type currencyManager interface {
-	Get(ctx context.Context, user *types.User) (string, error)
-	Set(ctx context.Context, user *types.User, currency string) error
-	ListCurrenciesCodesWithFlags() []string
-}
+	rater interface {
+		Run(ctx context.Context) error
+		Ready() bool
+		Exchange(ctx context.Context, value int64, from, to string, date time.Time) (int64, error)
+	}
+
+	currencyManager interface {
+		Get(ctx context.Context, user *types.User) (string, error)
+		Set(ctx context.Context, user *types.User, currency string) error
+		ListCurrenciesCodesWithFlags() []string
+	}
+)
 
 type controller struct {
 	expenser        expenser
 	limiter         limiter
 	currencyManager currencyManager
+	cache           cache.Cache
 	rater           rater
 	logger          *zap.Logger
 }
 
-func NewController(e expenser, l limiter, c currencyManager, r rater, logger *zap.Logger) *controller {
+func NewController(e expenser, lm limiter, cm currencyManager, c cache.Cache, r rater, l *zap.Logger) *controller {
 	return &controller{
 		expenser:        e,
-		limiter:         l,
-		currencyManager: c,
+		limiter:         lm,
+		currencyManager: cm,
+		cache:           c,
 		rater:           r,
-		logger:          logger,
+		logger:          l,
 	}
 }
 
@@ -188,6 +198,11 @@ func (c *controller) AddExpense(ctx context.Context, req request.AddExpense) (re
 
 	resp.Success = true
 
+	cacheKeyPattern := fmt.Sprintf("%s_%d_*", _cachePrefix, req.User)
+	if err := c.deleteReportFromCache(cacheKeyPattern); err != nil {
+		c.logger.Warn("cannot delete report from cache", zap.Error(err), zap.String("pattern", cacheKeyPattern))
+	}
+
 	limit, err := c.limiter.Get(ctx, req.User, req.Category)
 	if err != nil {
 		c.logger.Error("cannot get user limit", zap.Error(err), zap.Object("request", req))
@@ -219,12 +234,7 @@ func (c *controller) GetReport(ctx context.Context, req request.GetReport) respo
 	defer span.Finish()
 
 	resp := response.GetReport{
-		From:  req.From,
-		Ready: c.rater.Ready(),
-	}
-
-	if !resp.Ready {
-		return resp
+		From: req.From,
 	}
 
 	currency, ok := c.resolveUserCurrency(ctx, req.User)
@@ -233,6 +243,16 @@ func (c *controller) GetReport(ctx context.Context, req request.GetReport) respo
 	}
 
 	resp.Currency = currency
+	resp.Ready = c.rater.Ready()
+
+	if !resp.Ready {
+		return resp
+	}
+
+	cacheKey := fmt.Sprintf("%s_%d_%s_%s", _cachePrefix, req.User, currency, req.From)
+	if cached := c.getReportFromCache(cacheKey); cached != nil {
+		return *cached
+	}
 
 	report, err := c.expenser.Report(ctx, req.User, req.From)
 	if err != nil {
@@ -257,6 +277,10 @@ func (c *controller) GetReport(ctx context.Context, req request.GetReport) respo
 	resp.Data = data
 	resp.Success = true
 
+	if err := c.setReportToCache(cacheKey, resp); err != nil {
+		c.logger.Warn("cannot set report to cache", zap.Error(err), zap.String("key", cacheKey))
+	}
+
 	return resp
 }
 
@@ -268,4 +292,42 @@ func (c *controller) resolveUserCurrency(ctx context.Context, user *types.User) 
 	}
 
 	return currency, true
+}
+
+func (c *controller) getReportFromCache(key string) *response.GetReport {
+	if c.cache == nil {
+		return nil
+	}
+
+	data, ok := c.cache.Get(key)
+	if !ok {
+		c.logger.Debug("there is no report in cache", zap.String("key", key))
+		return nil
+	}
+
+	resp := &response.GetReport{}
+	if err := resp.UnmarshalBinary([]byte(data)); err != nil {
+		c.logger.Warn("cannot unmarshal get report response", zap.Error(err))
+		return nil
+	}
+
+	c.logger.Debug("got report from cache", zap.String("key", key))
+
+	return resp
+}
+
+func (c *controller) setReportToCache(key string, resp response.GetReport) error {
+	if c.cache == nil {
+		return nil
+	}
+
+	if err := c.cache.Set(key, resp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *controller) deleteReportFromCache(pattern string) error {
+	return c.cache.DeleteByPattern(pattern)
 }
