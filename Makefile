@@ -39,11 +39,10 @@ prod: build
 
 generate: install-mockgen
 	${MOCKGEN} -source=internal/clients/telegram/tgclient.go -destination=internal/mocks/clients/telegram/tgclient_mock.go
-	${MOCKGEN} -source=internal/currency/rates/cbr/cbr.go -destination=internal/mocks/currency/rates/cbr/cbr_mock.go
-	${MOCKGEN} -source=internal/currency/rates/rates.go -destination=internal/mocks/currency/rates/rates_mock.go
-	${MOCKGEN} -source=internal/model/controller.go -destination=internal/mocks/model/controller_mock.go
+	${MOCKGEN} -source=internal/model/types.go -destination=internal/mocks/model/types_mock.go
+	${MOCKGEN} -source=internal/model/currency/cbr/cbr_gateway.go -destination=internal/mocks/model/currency/cbr/cbr_gateway_mock.go
+	${MOCKGEN} -source=internal/model/currency/rater.go -destination=internal/mocks/model/currency/rater_mock.go
 	${MOCKGEN} -source=internal/storage/types.go -destination=internal/mocks/storage/types_mock.go
-	${MOCKGEN} -source=internal/cache/types.go -destination=internal/mocks/cache/types_mock.go
 
 lint: install-lint
 	${LINTBIN} run

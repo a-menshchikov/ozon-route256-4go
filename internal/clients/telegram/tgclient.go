@@ -363,7 +363,7 @@ func (c *client) handleReport(ctx context.Context, user *types.User, args string
 		return currencyLaterMessage
 
 	case !resp.Success:
-		return emergencyMessage
+		return reportRetry
 
 	case len(resp.Data) == 0:
 		return reportNoExpenses

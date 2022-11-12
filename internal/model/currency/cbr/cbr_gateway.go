@@ -23,22 +23,22 @@ type httpClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-type gateway struct {
+type cbrGateway struct {
 	client  httpClient
 	url     string
 	timeout time.Duration
 }
 
-func NewGateway(client httpClient) *gateway {
-	return &gateway{
+func NewCbrGateway(client httpClient) *cbrGateway {
+	return &cbrGateway{
 		client:  client,
 		url:     _ratesUrl,
 		timeout: _defaultTimeout,
 	}
 }
 
-func (g *gateway) FetchRates(ctx context.Context) (map[string]int64, time.Time, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "gateway.FetchRates")
+func (g *cbrGateway) FetchRates(ctx context.Context) (map[string]int64, time.Time, error) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, "cbrGateway.FetchRates")
 	defer span.Finish()
 
 	list, err := fetchCurrentRates(ctx, g.client, g.url, g.timeout)

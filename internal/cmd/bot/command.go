@@ -8,17 +8,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	jaegierconfig "github.com/uber/jaeger-client-go/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache/redis"
 	tgclient "gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/telegram"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency/rates"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency/rates/cbr"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense/limit"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/metrics"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency/cbr"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/expense"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/inmemory"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/postgresql"
@@ -85,27 +82,40 @@ func NewCommand(name, version string) *cobra.Command {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
-			ratesCache, err := newCache(ctx, cfg.Cache.Rates, logger)
-			if err != nil {
-				return errors.Wrap(err, "report cache init failed")
-			}
-
-			reportCache, err := newCache(ctx, cfg.Cache.Report, logger)
-			if err != nil {
-				return errors.Wrap(err, "report cache init failed")
+			ratesStorage := storageFactory.CreateRatesStorage()
+			if cfg.Cache.Rates.Driver != "" {
+				if ratesStorage, err = newCurrencyRatesCache(ratesStorage, cfg.Cache.Rates, logger); err != nil {
+					logger.Error("rates cache init failed", zap.Error(err))
+				}
 			}
 
 			metricsServer := metrics.NewServer(uint16(metricsPort), logger)
-			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), ratesCache, cbr.NewGateway(http.DefaultClient), logger)
+			rater := currency.NewRater(
+				cfg.Currency,
+				ratesStorage,
+				cbr.NewCbrGateway(http.DefaultClient),
+				logger,
+			)
 
 			g.Go(func() error { return metricsServer.Run(ctx) })
 			g.Go(func() error { return rater.Run(ctx) })
 
+			expenseStorage := storageFactory.CreateExpenseStorage()
+			var (
+				expenser model.Expenser = expense.NewExpenser(expenseStorage)
+				reporter model.Reporter = expense.NewReporter(expenseStorage, rater, logger)
+			)
+			if cfg.Cache.Reporter.Driver != "" {
+				if expenser, reporter, err = newReportCache(expenser, reporter, cfg.Cache.Reporter, logger); err != nil {
+					logger.Error("reports cache init failed", zap.Error(err))
+				}
+			}
+
 			finAssist := model.NewController(
-				expense.NewExpenser(storageFactory.CreateExpenseStorage()),
-				limit.NewLimiter(storageFactory.CreateLimitStorage()),
-				currency.NewManager(cfg.Currency, storageFactory.CreateCurrencyStorage()),
-				reportCache,
+				expenser,
+				reporter,
+				expense.NewLimiter(storageFactory.CreateLimitStorage()),
+				currency.NewCurrencyManager(cfg.Currency, storageFactory.CreateCurrencyStorage()),
 				rater,
 				logger,
 			)
@@ -186,16 +196,23 @@ func newStorageFactory(ctx context.Context, cfg config.StorageConfig, logger *za
 	return nil, errors.New("unknown storage driver")
 }
 
-func newCache(ctx context.Context, cfg config.CacheSectionConfig, logger *zap.Logger) (cache.Cache, error) {
+func newCurrencyRatesCache(storage storage.CurrencyRatesStorage, cfg config.CacheSectionConfig, logger *zap.Logger) (storage.CurrencyRatesStorage, error) {
 	switch cfg.Driver {
 	case config.RedisDriver:
-		return redis.NewCache(ctx, cfg.Dsn, logger)
-
-	case "":
-		return nil, nil
+		return redis.NewCurrencyRatesCache(storage, cfg.Dsn, logger)
 	}
 
-	return nil, errors.New("unknown cache driver")
+	return storage, errors.New("unknown rates cache driver")
+}
+
+func newReportCache(expenser model.Expenser, reporter model.Reporter, cfg config.CacheSectionConfig, logger *zap.Logger) (model.Expenser, model.Reporter, error) {
+	switch cfg.Driver {
+	case config.RedisDriver:
+		cache, err := redis.NewReportCache(expenser, reporter, cfg.Dsn, logger)
+		return cache, cache, err
+	}
+
+	return expenser, reporter, errors.New("unknown report cache driver")
 }
 
 func newTelegramClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (client, error) {

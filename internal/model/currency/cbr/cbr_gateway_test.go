@@ -13,7 +13,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/currency/rates/cbr"
+	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/model/currency/cbr"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -31,7 +31,7 @@ type mocksInitializer struct {
 	client func(*mocks.MockhttpClient)
 }
 
-func setupGateway(t *testing.T, i mocksInitializer) *gateway {
+func setupGateway(t *testing.T, i mocksInitializer) *cbrGateway {
 	ctrl := gomock.NewController(t)
 
 	clientMock := mocks.NewMockhttpClient(ctrl)
@@ -39,7 +39,7 @@ func setupGateway(t *testing.T, i mocksInitializer) *gateway {
 		i.client(clientMock)
 	}
 
-	return NewGateway(clientMock)
+	return NewCbrGateway(clientMock)
 }
 
 func Test_gateway_FetchRates(t *testing.T) {

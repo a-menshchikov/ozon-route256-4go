@@ -21,7 +21,7 @@ func NewExpenser(s storage.ExpenseStorage) *expenser {
 	}
 }
 
-func (e *expenser) Add(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error {
+func (e *expenser) AddExpense(ctx context.Context, user *types.User, date time.Time, amount int64, currency, category string) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "expenser.Add", opentracing.Tags{
 		"user":     *user,
 		"date":     date,
@@ -49,19 +49,4 @@ func (e *expenser) Add(ctx context.Context, user *types.User, date time.Time, am
 		},
 		category,
 	)
-}
-
-func (e *expenser) Report(ctx context.Context, user *types.User, from time.Time) (map[string][]types.ExpenseItem, error) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, "expenser.Report", opentracing.Tags{
-		"user": *user,
-		"from": from,
-	})
-	defer span.Finish()
-
-	data, err := e.storage.List(ctx, user, from)
-	if err != nil {
-		return nil, errors.Wrap(err, "ExpenseStorage.Report")
-	}
-
-	return data, nil
 }

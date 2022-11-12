@@ -1,4 +1,4 @@
-package limit
+package expense
 
 import (
 	"context"
@@ -78,7 +78,7 @@ func (l *limiter) List(ctx context.Context, user *types.User) (map[string]types.
 
 	list, found, err := l.storage.List(ctx, user)
 	if err != nil {
-		return nil, errors.Wrap(err, "ExpenseLimitStorage.Report")
+		return nil, errors.Wrap(err, "ExpenseLimitStorage.List")
 	}
 
 	if found {

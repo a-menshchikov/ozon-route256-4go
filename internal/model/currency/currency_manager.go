@@ -10,7 +10,7 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
-type manager struct {
+type currencyManager struct {
 	defaultCurrency string
 	currencies      []currency
 	storage         storage.CurrencyStorage
@@ -21,7 +21,7 @@ type currency struct {
 	flag string
 }
 
-func NewManager(currencyCfg config.CurrencyConfig, s storage.CurrencyStorage) *manager {
+func NewCurrencyManager(currencyCfg config.CurrencyConfig, s storage.CurrencyStorage) *currencyManager {
 	cc := make([]currency, len(currencyCfg.Available))
 	for k, c := range currencyCfg.Available {
 		cc[k] = currency{
@@ -30,14 +30,14 @@ func NewManager(currencyCfg config.CurrencyConfig, s storage.CurrencyStorage) *m
 		}
 	}
 
-	return &manager{
+	return &currencyManager{
 		defaultCurrency: currencyCfg.Base,
 		currencies:      cc,
 		storage:         s,
 	}
 }
 
-func (m *manager) Get(ctx context.Context, user *types.User) (string, error) {
+func (m *currencyManager) Get(ctx context.Context, user *types.User) (string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "currencyManager.Get", opentracing.Tags{
 		"user": *user,
 	})
@@ -52,7 +52,7 @@ func (m *manager) Get(ctx context.Context, user *types.User) (string, error) {
 	return m.defaultCurrency, nil
 }
 
-func (m *manager) Set(ctx context.Context, user *types.User, curr string) error {
+func (m *currencyManager) Set(ctx context.Context, user *types.User, curr string) error {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "currencyManager.Set", opentracing.Tags{
 		"user":     *user,
 		"currency": curr,
@@ -70,7 +70,7 @@ func (m *manager) Set(ctx context.Context, user *types.User, curr string) error 
 	return errors.New("указана неизвестная валюта")
 }
 
-func (m *manager) ListCurrenciesCodesWithFlags() []string {
+func (m *currencyManager) ListCurrenciesCodesWithFlags() []string {
 	list := make([]string, len(m.currencies))
 	for k, c := range m.currencies {
 		list[k] = c.code + " " + c.flag

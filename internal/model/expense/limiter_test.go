@@ -1,29 +1,21 @@
-package limit
+package expense
 
 import (
 	"context"
-	"reflect"
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/storage"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/test"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
-var (
-	ctxInterface = reflect.TypeOf((*context.Context)(nil)).Elem()
-
-	testUser    = &([]types.User{types.User(int64(123))}[0])
-	simpleError = errors.New("error")
-)
-
-type mocksInitializer struct {
+type limiterMocksInitializer struct {
 	storage func(m *mocks.MockExpenseLimitStorage)
 }
 
-func setupLimiter(t *testing.T, i mocksInitializer) *limiter {
+func setupLimiter(t *testing.T, i limiterMocksInitializer) *limiter {
 	ctrl := gomock.NewController(t)
 
 	storageMock := mocks.NewMockExpenseLimitStorage(ctrl)
@@ -37,14 +29,14 @@ func setupLimiter(t *testing.T, i mocksInitializer) *limiter {
 func Test_limiter_Get(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser, "taxi").Return(types.LimitItem{}, false, simpleError)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(test.CtxInterface), test.User, "taxi").Return(types.LimitItem{}, false, test.SimpleError)
 			},
 		})
 
 		// ACT
-		item, err := l.Get(context.Background(), testUser, "taxi")
+		item, err := l.Get(context.Background(), test.User, "taxi")
 
 		// ASSERT
 		assert.Error(t, err)
@@ -53,14 +45,14 @@ func Test_limiter_Get(t *testing.T) {
 
 	t.Run("limit not found", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser, "").Return(types.LimitItem{}, false, nil)
+				m.EXPECT().Get(gomock.AssignableToTypeOf(test.CtxInterface), test.User, "").Return(types.LimitItem{}, false, nil)
 			},
 		})
 
 		// ACT
-		item, err := l.Get(context.Background(), testUser, "")
+		item, err := l.Get(context.Background(), test.User, "")
 
 		// ASSERT
 		assert.NoError(t, err)
@@ -69,9 +61,9 @@ func Test_limiter_Get(t *testing.T) {
 
 	t.Run("found", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Get(gomock.AssignableToTypeOf(ctxInterface), testUser, "coffee").Return(types.LimitItem{
+				m.EXPECT().Get(gomock.AssignableToTypeOf(test.CtxInterface), test.User, "coffee").Return(types.LimitItem{
 					Total:    1000000,
 					Remains:  150000,
 					Currency: "USD",
@@ -80,7 +72,7 @@ func Test_limiter_Get(t *testing.T) {
 		})
 
 		// ACT
-		item, err := l.Get(context.Background(), testUser, "coffee")
+		item, err := l.Get(context.Background(), test.User, "coffee")
 
 		// ASSERT
 		assert.NoError(t, err)
@@ -95,12 +87,12 @@ func Test_limiter_Get(t *testing.T) {
 func Test_limiter_Set(t *testing.T) {
 	t.Run("negative limit", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{})
+		l := setupLimiter(t, limiterMocksInitializer{})
 
 		// ACT
 		err := l.Set(
 			context.Background(),
-			testUser,
+			test.User,
 			int64(-10000), // limit
 			"RUB",         // currency
 			"",            // category
@@ -112,16 +104,16 @@ func Test_limiter_Set(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Set(gomock.AssignableToTypeOf(ctxInterface), testUser, int64(1000000), "RUB", "coffee").Return(simpleError)
+				m.EXPECT().Set(gomock.AssignableToTypeOf(test.CtxInterface), test.User, int64(1000000), "RUB", "coffee").Return(test.SimpleError)
 			},
 		})
 
 		// ACT
 		err := l.Set(
 			context.Background(),
-			testUser,
+			test.User,
 			int64(1000000), // limit
 			"RUB",          // currency
 			"coffee",       // category
@@ -133,16 +125,16 @@ func Test_limiter_Set(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Set(gomock.AssignableToTypeOf(ctxInterface), testUser, int64(1200000), "RUB", "coffee").Return(nil)
+				m.EXPECT().Set(gomock.AssignableToTypeOf(test.CtxInterface), test.User, int64(1200000), "RUB", "coffee").Return(nil)
 			},
 		})
 
 		// ACT
 		err := l.Set(
 			context.Background(),
-			testUser,
+			test.User,
 			int64(1200000), // limit
 			"RUB",          // currency
 			"coffee",       // category
@@ -156,16 +148,16 @@ func Test_limiter_Set(t *testing.T) {
 func Test_limiter_Decrease(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Decrease(gomock.AssignableToTypeOf(ctxInterface), testUser, int64(100000), "taxi").Return(false, simpleError)
+				m.EXPECT().Decrease(gomock.AssignableToTypeOf(test.CtxInterface), test.User, int64(100000), "taxi").Return(false, test.SimpleError)
 			},
 		})
 
 		// ACT
 		ok, err := l.Decrease(
 			context.Background(),
-			testUser,
+			test.User,
 			int64(100000), // value
 			"taxi",        // category
 		)
@@ -177,16 +169,16 @@ func Test_limiter_Decrease(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Decrease(gomock.AssignableToTypeOf(ctxInterface), testUser, int64(200000), "coffee").Return(true, nil)
+				m.EXPECT().Decrease(gomock.AssignableToTypeOf(test.CtxInterface), test.User, int64(200000), "coffee").Return(true, nil)
 			},
 		})
 
 		// ACT
 		ok, err := l.Decrease(
 			context.Background(),
-			testUser,
+			test.User,
 			int64(200000), // value
 			"coffee",      // category
 		)
@@ -200,16 +192,16 @@ func Test_limiter_Decrease(t *testing.T) {
 func Test_limiter_Unset(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Unset(gomock.AssignableToTypeOf(ctxInterface), testUser, "").Return(simpleError)
+				m.EXPECT().Unset(gomock.AssignableToTypeOf(test.CtxInterface), test.User, "").Return(test.SimpleError)
 			},
 		})
 
 		// ACT
 		err := l.Unset(
 			context.Background(),
-			testUser,
+			test.User,
 			"", // category
 		)
 
@@ -219,16 +211,16 @@ func Test_limiter_Unset(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().Unset(gomock.AssignableToTypeOf(ctxInterface), testUser, "taxi").Return(nil)
+				m.EXPECT().Unset(gomock.AssignableToTypeOf(test.CtxInterface), test.User, "taxi").Return(nil)
 			},
 		})
 
 		// ACT
 		err := l.Unset(
 			context.Background(),
-			testUser,
+			test.User,
 			"taxi", // category
 		)
 
@@ -240,14 +232,14 @@ func Test_limiter_Unset(t *testing.T) {
 func Test_limiter_List(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser).Return(nil, false, simpleError)
+				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User).Return(nil, false, test.SimpleError)
 			},
 		})
 
 		// ACT
-		list, err := l.List(context.Background(), testUser)
+		list, err := l.List(context.Background(), test.User)
 
 		// ASSERT
 		assert.Error(t, err)
@@ -256,14 +248,14 @@ func Test_limiter_List(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser).Return(nil, false, nil)
+				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User).Return(nil, false, nil)
 			},
 		})
 
 		// ACT
-		list, err := l.List(context.Background(), testUser)
+		list, err := l.List(context.Background(), test.User)
 
 		// ASSERT
 		assert.NoError(t, err)
@@ -272,9 +264,9 @@ func Test_limiter_List(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// ARRANGE
-		l := setupLimiter(t, mocksInitializer{
+		l := setupLimiter(t, limiterMocksInitializer{
 			storage: func(m *mocks.MockExpenseLimitStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(ctxInterface), testUser).Return(map[string]types.LimitItem{
+				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User).Return(map[string]types.LimitItem{
 					"taxi": {
 						Total:    15000000,
 						Remains:  6000000,
@@ -290,7 +282,7 @@ func Test_limiter_List(t *testing.T) {
 		})
 
 		// ACT
-		list, err := l.List(context.Background(), testUser)
+		list, err := l.List(context.Background(), test.User)
 
 		// ASSERT
 		assert.NoError(t, err)

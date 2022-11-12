@@ -7,8 +7,8 @@ const (
 )
 
 type CacheConfig struct {
-	Report CacheSectionConfig `yaml:"report"`
-	Rates  CacheSectionConfig `yaml:"rates"`
+	Reporter CacheSectionConfig `yaml:"reporter"`
+	Rates    CacheSectionConfig `yaml:"rates"`
 }
 
 type CacheSectionConfig struct {
