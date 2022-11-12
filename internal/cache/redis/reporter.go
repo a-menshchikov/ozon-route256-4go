@@ -42,7 +42,7 @@ func (c *redisReportCache) AddExpense(ctx context.Context, user *types.User, dat
 
 	defer func() {
 		if err == nil {
-			keyPattern := c.cacheKeyPattern(user, currency)
+			keyPattern := c.cacheKeyPattern(user)
 			if keys, err := c.rdb.Keys(ctx, keyPattern).Result(); err != nil {
 				c.logger.Warn("cannot get cache keys", zap.Error(err), zap.String("pattern", keyPattern))
 			} else if err := c.rdb.Del(ctx, keys...).Err(); err != nil {
@@ -87,9 +87,9 @@ func (c *redisReportCache) GetReport(ctx context.Context, user *types.User, from
 }
 
 func (c *redisReportCache) cacheKey(user *types.User, currency string, date time.Time) string {
-	return fmt.Sprintf("%s_%d_%s_%s", c.keyPrefix, int64(*user), currency, date)
+	return fmt.Sprintf("%s_%s_%s_%s", c.keyPrefix, user, currency, date)
 }
 
-func (c *redisReportCache) cacheKeyPattern(user *types.User, currency string) string {
-	return fmt.Sprintf("%s_%d_%s_*", c.keyPrefix, int64(*user), currency)
+func (c *redisReportCache) cacheKeyPattern(user *types.User) string {
+	return fmt.Sprintf("%s_%s_*", c.keyPrefix, user)
 }

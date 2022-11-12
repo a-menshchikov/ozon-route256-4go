@@ -8,7 +8,8 @@ stages:
 build:
   stage: build
   script:
-    - make build
+    - make build-bot
+    - make build-reporter
 
 test:
   stage: test

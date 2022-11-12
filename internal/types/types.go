@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strconv"
 	"time"
 
 	"go.uber.org/zap/zapcore"
@@ -8,10 +9,20 @@ import (
 
 type User int64
 
+func (u *User) String() string {
+	return strconv.Itoa(int(*u))
+}
+
 type ExpenseItem struct {
 	Date     time.Time
 	Amount   int64
 	Currency string
+}
+
+type Report struct {
+	Data    map[string]int64
+	Success bool
+	Error   string
 }
 
 type LimitItem struct {

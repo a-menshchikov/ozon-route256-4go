@@ -3,11 +3,11 @@ package expense
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	mmocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/model"
-	smocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/storage"
+	mocks "gitlab.ozon.dev/almenschhikov/go-course-4/internal/mocks/model/expense"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/test"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
@@ -15,87 +15,111 @@ import (
 )
 
 type reporterMocksInitializer struct {
-	storage func(m *smocks.MockExpenseStorage)
-	rater   func(m *mmocks.MockRater)
+	producer func(m *mocks.Mockproducer)
+	listener func(m *mocks.Mocklistener)
 }
 
-func setupReporter(t *testing.T, i reporterMocksInitializer) *reporter {
+func setupReporter(t *testing.T, timeout time.Duration, i reporterMocksInitializer) *reporter {
 	ctrl := gomock.NewController(t)
 
-	storageMock := smocks.NewMockExpenseStorage(ctrl)
-	if i.storage != nil {
-		i.storage(storageMock)
+	producerMock := mocks.NewMockproducer(ctrl)
+	if i.producer != nil {
+		i.producer(producerMock)
 	}
 
-	raterMock := mmocks.NewMockRater(ctrl)
-	if i.rater != nil {
-		i.rater(raterMock)
+	listenerMock := mocks.NewMocklistener(ctrl)
+	if i.listener != nil {
+		i.listener(listenerMock)
 	}
 
-	return NewReporter(storageMock, raterMock, zap.NewNop())
+	return NewReporter(timeout, producerMock, listenerMock, zap.NewNop())
 }
 
 func Test_reporter_GetReport(t *testing.T) {
-	t.Run("not ready", func(t *testing.T) {
+	t.Run("producer error", func(t *testing.T) {
 		// ARRANGE
-		r := setupReporter(t, reporterMocksInitializer{
-			rater: func(m *mmocks.MockRater) {
-				m.EXPECT().TryAcquireExchange().Return(false)
+		r := setupReporter(t, 0, reporterMocksInitializer{
+			producer: func(m *mocks.Mockproducer) {
+				m.EXPECT().Send(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Yesterday, "RUB").Return(test.SimpleError)
+			},
+			listener: func(m *mocks.Mocklistener) {
+				m.EXPECT().Subscribe(test.User).Return(make(<-chan types.Report))
+				m.EXPECT().Unsubscribe(test.User)
 			},
 		})
 
 		// ACT
-		data, err := r.GetReport(context.Background(), test.User, test.Today, "RUB")
-
-		// ASSERT
-		assert.Equal(t, model.ErrNotReady, err)
-		assert.Empty(t, data)
-	})
-
-	t.Run("storage error", func(t *testing.T) {
-		// ARRANGE
-		r := setupReporter(t, reporterMocksInitializer{
-			storage: func(m *smocks.MockExpenseStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Today).Return(nil, test.SimpleError)
-			},
-			rater: func(m *mmocks.MockRater) {
-				m.EXPECT().TryAcquireExchange().Return(true)
-				m.EXPECT().ReleaseExchange()
-			},
-		})
-
-		// ACT
-		data, err := r.GetReport(context.Background(), test.User, test.Today, "RUB")
+		data, err := r.GetReport(context.Background(), test.User, test.Yesterday, "RUB")
 
 		// ASSERT
 		assert.Error(t, err)
 		assert.Empty(t, data)
 	})
 
-	t.Run("rater error", func(t *testing.T) {
+	t.Run("timeout", func(t *testing.T) {
 		// ARRANGE
-		r := setupReporter(t, reporterMocksInitializer{
-			storage: func(m *smocks.MockExpenseStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Today).Return(map[string][]types.ExpenseItem{
-					"coffee": {
-						{
-							Date:     test.Today,
-							Amount:   20000,
-							Currency: "USD",
-						},
-						{
-							Date:     test.Today,
-							Amount:   30000,
-							Currency: "EUR",
-						},
-					},
-				}, nil)
+		r := setupReporter(t, time.Millisecond, reporterMocksInitializer{
+			producer: func(m *mocks.Mockproducer) {
+				m.EXPECT().Send(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Yesterday, "USD").Return(nil)
 			},
-			rater: func(m *mmocks.MockRater) {
-				m.EXPECT().TryAcquireExchange().Return(true)
-				m.EXPECT().ReleaseExchange()
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(20000), "USD", "RUB", test.Today).Return(int64(1000000), nil)
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(30000), "EUR", "RUB", test.Today).Return(int64(0), test.SimpleError)
+			listener: func(m *mocks.Mocklistener) {
+				m.EXPECT().Subscribe(test.User).Return(make(<-chan types.Report))
+				m.EXPECT().Unsubscribe(test.User)
+			},
+		})
+
+		// ACT
+		data, err := r.GetReport(context.Background(), test.User, test.Yesterday, "USD")
+
+		// ASSERT
+		assert.Error(t, err)
+		assert.Equal(t, "context deadline exceeded", err.Error())
+		assert.Empty(t, data)
+	})
+
+	t.Run("not ready", func(t *testing.T) {
+		// ARRANGE
+		r := setupReporter(t, time.Second, reporterMocksInitializer{
+			producer: func(m *mocks.Mockproducer) {
+				m.EXPECT().Send(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Today, "EUR").Return(nil)
+			},
+			listener: func(m *mocks.Mocklistener) {
+				reportCh := make(chan types.Report)
+				go func() {
+					reportCh <- types.Report{
+						Success: false,
+						Error:   "not ready",
+					}
+				}()
+				m.EXPECT().Subscribe(test.User).Return(func(ch <-chan types.Report) <-chan types.Report { return ch }(reportCh))
+				m.EXPECT().Unsubscribe(test.User)
+			},
+		})
+
+		// ACT
+		data, err := r.GetReport(context.Background(), test.User, test.Today, "EUR")
+
+		// ASSERT
+		assert.Equal(t, model.ErrNotReady, err)
+		assert.Empty(t, data)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		// ARRANGE
+		r := setupReporter(t, time.Second, reporterMocksInitializer{
+			producer: func(m *mocks.Mockproducer) {
+				m.EXPECT().Send(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Today, "RUB").Return(nil)
+			},
+			listener: func(m *mocks.Mocklistener) {
+				reportCh := make(chan types.Report)
+				go func() {
+					reportCh <- types.Report{
+						Success: false,
+						Error:   "general error",
+					}
+				}()
+				m.EXPECT().Subscribe(test.User).Return(func(ch <-chan types.Report) <-chan types.Report { return ch }(reportCh))
+				m.EXPECT().Unsubscribe(test.User)
 			},
 		})
 
@@ -109,47 +133,34 @@ func Test_reporter_GetReport(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		// ARRANGE
-		r := setupReporter(t, reporterMocksInitializer{
-			storage: func(m *smocks.MockExpenseStorage) {
-				m.EXPECT().List(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Today).Return(map[string][]types.ExpenseItem{
-					"taxi": {
-						{
-							Date:     test.Today,
-							Amount:   100000,
-							Currency: "USD",
-						},
-						{
-							Date:     test.Today,
-							Amount:   120000,
-							Currency: "EUR",
-						},
-					},
-					"coffee": {
-						{
-							Date:     test.Today,
-							Amount:   1200000,
-							Currency: "RUB",
-						},
-					},
-				}, nil)
+		r := setupReporter(t, time.Second, reporterMocksInitializer{
+			producer: func(m *mocks.Mockproducer) {
+				m.EXPECT().Send(gomock.AssignableToTypeOf(test.CtxInterface), test.User, test.Yesterday, "USD").Return(nil)
 			},
-			rater: func(m *mmocks.MockRater) {
-				m.EXPECT().TryAcquireExchange().Return(true)
-				m.EXPECT().ReleaseExchange()
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(100000), "USD", "RUB", test.Today).Return(int64(5000000), nil)
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(120000), "EUR", "RUB", test.Today).Return(int64(6600000), nil)
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(1200000), "RUB", "RUB", test.Today).Return(int64(1200000), nil)
+			listener: func(m *mocks.Mocklistener) {
+				reportCh := make(chan types.Report)
+				go func() {
+					reportCh <- types.Report{
+						Data: map[string]int64{
+							"taxi":   220000,
+							"coffee": 250000,
+						},
+						Success: true,
+					}
+				}()
+				m.EXPECT().Subscribe(test.User).Return(func(ch <-chan types.Report) <-chan types.Report { return ch }(reportCh))
+				m.EXPECT().Unsubscribe(test.User)
 			},
 		})
 
 		// ACT
-		data, err := r.GetReport(context.Background(), test.User, test.Today, "RUB")
+		data, err := r.GetReport(context.Background(), test.User, test.Yesterday, "USD")
 
 		// ASSERT
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]int64{
-			"taxi":   11600000,
-			"coffee": 1200000,
+			"taxi":   220000,
+			"coffee": 250000,
 		}, data)
 	})
 }

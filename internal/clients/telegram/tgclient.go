@@ -73,7 +73,7 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = _updateTimeout
 
-	c.logger.Info("listening for messages")
+	c.logger.Info("listen for messages")
 
 	updates := c.api.GetUpdatesChan(u)
 
@@ -84,9 +84,9 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 
 		case update := <-updates:
 			if update.Message != nil {
-				c.handleMessage(ctx, update.Message)
+				go c.handleMessage(ctx, update.Message)
 			} else if update.CallbackQuery != nil {
-				c.handleCallback(ctx, update.CallbackQuery)
+				go c.handleCallback(ctx, update.CallbackQuery)
 			}
 		}
 	}

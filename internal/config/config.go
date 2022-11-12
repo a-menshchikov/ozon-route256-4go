@@ -7,15 +7,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Config struct {
-	Client   ClientConfig   `yaml:"client"`
+type config struct {
+	Client   clientConfig   `yaml:"client"`
 	Storage  StorageConfig  `yaml:"storage"`
-	Cache    CacheConfig    `yaml:"cache"`
+	Cache    cacheConfig    `yaml:"cache"`
 	Currency CurrencyConfig `yaml:"currency"`
+	Reports  ReportsConfig  `yaml:"reports"`
 }
 
-func New(configPath string) (*Config, error) {
-	c := &Config{}
+func NewConfig(configPath string) (*config, error) {
+	c := &config{}
 
 	rawYAML, err := os.ReadFile(configPath)
 	if err != nil {

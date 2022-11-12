@@ -1,4 +1,4 @@
-.PHONY: all build test run generate lint precommit bindir format install-mockgen install-lint install-smartimports logs metrics tracing
+.PHONY: all build-bot build-reporter test run generate lint precommit bindir format install-mockgen install-lint install-smartimports logs metrics tracing
 
 CURDIR=$(shell pwd)
 BINDIR=${CURDIR}/bin
@@ -7,7 +7,8 @@ MOCKGEN=${BINDIR}/mockgen_${GOVER}
 SMARTIMPORTS=${BINDIR}/smartimports_${GOVER}
 LINTVER=v1.50.0
 LINTBIN=${BINDIR}/lint_${GOVER}_${LINTVER}
-PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/bot
+BOT_PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/bot
+REPORTER_PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/reporter
 
 ifeq ($(GOOS),)
 	GOOS:=linux
@@ -19,29 +20,43 @@ ifeq ($(BUILD_REVISION),)
 	BUILD_REVISION:=$(shell git rev-parse HEAD)
 endif
 
-all: format lint build test
+all: format lint build-bot build-reporter test
 
-build: TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-build: LDFLAGS += -X main.version=$(BUILD_VERSION)
-build: LDFLAGS += -X main.gitRevision=$(BUILD_REVISION)
-build: LDFLAGS += -X main.buildTime=$(TIME)
-build: bindir
-	GOOS="$(GOOS)" go build -o ${BINDIR}/bot -ldflags "$(LDFLAGS)" ${PACKAGE}
+build-bot: TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+build-bot: LDFLAGS += -X main.version=$(BUILD_VERSION)
+build-bot: LDFLAGS += -X main.gitRevision=$(BUILD_REVISION)
+build-bot: LDFLAGS += -X main.buildTime=$(TIME)
+build-bot: bindir
+	GOOS="$(GOOS)" go build -o ${BINDIR}/bot -ldflags "$(LDFLAGS)" ${BOT_PACKAGE}
+
+build-reporter: TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+build-reporter: LDFLAGS += -X main.version=$(BUILD_VERSION)
+build-reporter: LDFLAGS += -X main.gitRevision=$(BUILD_REVISION)
+build-reporter: LDFLAGS += -X main.buildTime=$(TIME)
+build-reporter: bindir
+	GOOS="$(GOOS)" go build -o ${BINDIR}/reporter -ldflags "$(LDFLAGS)" ${REPORTER_PACKAGE}
 
 test:
 	go test ./...
 
-run:
-	go run ${PACKAGE}
+run-bot:
+	go run ${BOT_PACKAGE}
 
-prod: build
-	bin/bot -c data/config.yaml 2>&1 | tee data/.logs/log.txt
+run-reporter:
+	go run ${REPORTER_PACKAGE}
+
+prod-bot: build-bot
+	bin/bot -c data/config.yaml 2>&1 | tee data/.logs/bot.log
+
+prod-reporter: build-reporter
+	bin/reporter -c data/config.yaml 2>&1 | tee data/.logs/reporter.log
 
 generate: install-mockgen
 	${MOCKGEN} -source=internal/clients/telegram/tgclient.go -destination=internal/mocks/clients/telegram/tgclient_mock.go
 	${MOCKGEN} -source=internal/model/types.go -destination=internal/mocks/model/types_mock.go
 	${MOCKGEN} -source=internal/model/currency/cbr/cbr_gateway.go -destination=internal/mocks/model/currency/cbr/cbr_gateway_mock.go
 	${MOCKGEN} -source=internal/model/currency/rater.go -destination=internal/mocks/model/currency/rater_mock.go
+	${MOCKGEN} -source=internal/model/expense/reporter.go -destination=internal/mocks/model/expense/reporter_mock.go
 	${MOCKGEN} -source=internal/storage/types.go -destination=internal/mocks/storage/types_mock.go
 
 lint: install-lint
@@ -87,3 +102,6 @@ metrics:
 
 tracing:
 	docker compose up jaeger
+
+kafka:
+	docker compose up kafka

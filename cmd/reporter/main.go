@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cmd/bot"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cmd/reporter"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 	"go.uber.org/zap"
 )
@@ -23,10 +23,10 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	if err := bot.NewCommand(
+	if err := reporter.NewCommand(
 		filepath.Base(os.Args[0]),
 		utils.BuildVersion(version, gitRevision, buildTime),
 	).ExecuteContext(ctx); err != nil {
-		log.Fatal("bot failed", zap.Error(err))
+		log.Fatal("reporter failed", zap.Error(err))
 	}
 }
