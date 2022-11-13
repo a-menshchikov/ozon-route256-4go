@@ -1,7 +1,15 @@
+volumes:
+  pgtest:
+    driver_opts:
+      type: tmpfs
+      o: "size=100m"
+      device: tmpfs
+
 services:
   postgres:
     image: postgres:15-alpine
-    ports: [ '5432:5432' ]
+    ports:
+      - '5432:5432'
     environment:
       TZ: 'Europe/Moscow'
       PGTZ: 'Europe/Moscow'
@@ -12,22 +20,24 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: [ 6379:6379 ]
+    ports:
+      - '6379:6379'
     command: redis-server --save "" --databases 2 --maxmemory 20mb --maxmemory-policy allkeys-lru --requirepass pass
+
 
   # MESSAGE BROKER
   kafka:
     image: wurstmeister/kafka
     hostname: kafka
     ports:
-      - "9092:9092"
+      - '9092:9092'
     links:
       - zookeeper
     environment:
-      KAFKA_ADVERTISED_HOST_NAME: "127.0.0.1"
-      KAFKA_ADVERTISED_PORT: "9092"
-      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
-      KAFKA_CREATE_TOPICS: "report:1:1"
+      KAFKA_ADVERTISED_HOST_NAME: '127.0.0.1'
+      KAFKA_ADVERTISED_PORT: '9092'
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_CREATE_TOPICS: 'report:1:1'
     depends_on:
       - zookeeper
     container_name: example-kafka
@@ -35,8 +45,9 @@ services:
   zookeeper:
     image: wurstmeister/zookeeper
     ports:
-      - "2181:2181"
+      - '2181:2181'
     container_name: finassist-zookeeper
+
 
   # LOGS
   filed:
@@ -50,10 +61,12 @@ services:
       - graylog
     depends_on:
       - graylog
+
   mongodb:
     image: mongo:3
     volumes:
       - ./data/.mongo:/data/db
+
   elasticsearch:
     image: elasticsearch:7.17.6
     volumes:
@@ -62,6 +75,7 @@ services:
       - discovery.type=single-node
       - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+
   graylog:
     image: graylog/graylog:4.3
     volumes:
@@ -74,19 +88,20 @@ services:
       - elasticsearch
     ports:
       # Graylog web interface and REST API
-      - 7555:7555
+      - '7555:7555'
       # Syslog TCP
-      - 8514:8514
+      - '8514:8514'
       # Syslog UDP
-      - 8514:8514/udp
+      - '8514:8514/udp'
       # GELF TCP
-      - 12201:12201
+      - '12201:12201'
+
 
   # METRICS
   prometheus:
     image: prom/prometheus
     ports:
-      - 9090:9090
+      - '9090:9090'
     volumes:
       - ./data/prometheus.yml:/etc/prometheus/prometheus.yml
     extra_hosts:
@@ -94,11 +109,12 @@ services:
   grafana:
     image: grafana/grafana-oss
     ports:
-      - 3000:3000
+      - '3000:3000'
     volumes:
       - ./data/.grafana:/var/lib/grafana
     links:
       - prometheus
+
 
   # TRACING
   jaeger:
@@ -111,3 +127,16 @@ services:
       - 16686:16686 # web
       - 14268:14268
       - 9411:9411
+
+
+  # INTEGRATION TESTS DB
+  postgres_test:
+    image: postgres:15-alpine
+    ports: [ '5433:5432' ]
+    environment:
+      TZ: 'Europe/Moscow'
+      PGTZ: 'Europe/Moscow'
+      POSTGRES_PASSWORD: 'postgres'
+      POSTGRES_DB: 'testdb'
+    volumes:
+      - pgtest:/var/lib/postgresql/data

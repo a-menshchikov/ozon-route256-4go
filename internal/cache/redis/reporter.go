@@ -75,8 +75,7 @@ func (c *redisReportCache) GetReport(ctx context.Context, user *types.User, from
 
 	data, err := c.reporter.GetReport(ctx, user, from, currency)
 	if err == nil {
-		bytes, err := json.Marshal(data)
-		if err != nil {
+		if bytes, err := json.Marshal(data); err != nil {
 			c.logger.Error("cannot marshal report", zap.Error(err))
 		} else if err := c.rdb.Set(ctx, key, bytes, 0).Err(); err != nil {
 			c.logger.Warn("cannot set report cache", zap.Error(err), zap.String("key", key), zap.ByteString("cache", bytes))

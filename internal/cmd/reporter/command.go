@@ -2,11 +2,13 @@ package reporter
 
 import (
 	"context"
+	"io"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache/redis"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/ctxkey"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/metrics"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/expense/reports"
@@ -26,7 +28,7 @@ const (
 type (
 	storageFactory interface {
 		CreateExpenseStorage() storage.ExpenseStorage
-		CreateRatesStorage() storage.CurrencyRatesStorage
+		CreateCurrencyRatesStorage() storage.CurrencyRatesStorage
 	}
 )
 
@@ -47,15 +49,29 @@ func NewCommand(name, version string) *cobra.Command {
 		SilenceErrors: true,
 		Version:       version,
 
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := utils.NewLogger(logLevel, logDevel)
 			if err != nil {
 				return errors.Wrap(err, "logger init failed")
 			}
 
-			if err := utils.InitTracing(serviceName); err != nil {
+			cmd.SetContext(context.WithValue(cmd.Context(), ctxkey.Logger, logger))
+			return nil
+		},
+
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := cmd.Context()
+			logger := ctx.Value(ctxkey.Logger).(*zap.Logger)
+
+			closer, err := utils.InitTracing(serviceName)
+			if err != nil {
 				return errors.Wrap(err, "tracer init failed")
 			}
+			defer func(c io.Closer, l *zap.Logger) {
+				if err := c.Close(); err != nil {
+					l.Error("cannot close tracer", zap.Error(err))
+				}
+			}(closer, logger)
 
 			cfg, err := config.NewConfig(configPath)
 			if err != nil {
@@ -64,12 +80,12 @@ func NewCommand(name, version string) *cobra.Command {
 
 			g, ctx := errgroup.WithContext(cmd.Context())
 
-			storageFactory, err := newStorageFactory(ctx, cfg.Storage, logger)
+			factory, err := newStorageFactory(ctx, cfg.Storage, logger)
 			if err != nil {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
-			ratesStorage := storageFactory.CreateRatesStorage()
+			ratesStorage := factory.CreateCurrencyRatesStorage()
 			if cfg.Cache.Rates.Driver != "" {
 				if ratesStorage, err = newCurrencyRatesCache(ratesStorage, cfg.Cache.Rates, logger); err != nil {
 					logger.Error("rates cache init failed", zap.Error(err))
@@ -80,7 +96,7 @@ func NewCommand(name, version string) *cobra.Command {
 
 			g.Go(func() error { return metricsServer.Run(ctx) })
 
-			expenseStorage := storageFactory.CreateExpenseStorage()
+			expenseStorage := factory.CreateExpenseStorage()
 			rater := currency.NewRater(cfg.Currency, ratesStorage, nil, logger)
 			consumer, err := reports.NewConsumer(cfg.Reports.Kafka, cfg.Reports.Grpc, expenseStorage, rater, logger)
 			if err != nil {

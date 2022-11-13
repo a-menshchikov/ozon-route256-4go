@@ -1,4 +1,4 @@
-.PHONY: all build-bot build-reporter test run generate lint precommit bindir format install-mockgen install-lint install-smartimports logs metrics tracing
+.PHONY: all build-bot build-reporter test-unit test-integration run generate lint precommit bindir format install-mockgen install-lint install-smartimports logs metrics tracing
 
 CURDIR=$(shell pwd)
 BINDIR=${CURDIR}/bin
@@ -9,6 +9,7 @@ LINTVER=v1.50.0
 LINTBIN=${BINDIR}/lint_${GOVER}_${LINTVER}
 BOT_PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/bot
 REPORTER_PACKAGE=gitlab.ozon.dev/almenschhikov/go-course-4/cmd/reporter
+TESTDB_DSN=postgres://postgres:postgres@localhost:5433/testdb?sslmode=disable
 
 ifeq ($(GOOS),)
 	GOOS:=linux
@@ -36,8 +37,12 @@ build-reporter: LDFLAGS += -X main.buildTime=$(TIME)
 build-reporter: bindir
 	GOOS="$(GOOS)" go build -o ${BINDIR}/reporter -ldflags "$(LDFLAGS)" ${REPORTER_PACKAGE}
 
-test:
-	go test ./...
+test-unit:
+	go test ./... -tags unit -v
+
+test-integration:
+	bin/goose "$(TESTDB_DSN)" up -v
+	go test ./... -tags integration
 
 run-bot:
 	go run ${BOT_PACKAGE}
@@ -62,7 +67,7 @@ generate: install-mockgen
 lint: install-lint
 	${LINTBIN} run
 
-precommit: format lint build test
+precommit: format lint build-bot build-reporter test
 	echo "OK"
 
 bindir:
@@ -74,17 +79,17 @@ format: install-smartimports
 install-mockgen: bindir
 	test -f ${MOCKGEN} || \
 		(GOBIN=${BINDIR} go install github.com/golang/mock/mockgen@v1.6.0 && \
-		mv ${BINDIR}/mockgen ${MOCKGEN})
+			mv ${BINDIR}/mockgen ${MOCKGEN})
 
 install-lint: bindir
 	test -f ${LINTBIN} || \
 		(GOBIN=${BINDIR} go install github.com/golangci/golangci-lint/cmd/golangci-lint@${LINTVER} && \
-		mv ${BINDIR}/golangci-lint ${LINTBIN})
+			mv ${BINDIR}/golangci-lint ${LINTBIN})
 
 install-smartimports: bindir
 	test -f ${SMARTIMPORTS} || \
 		(GOBIN=${BINDIR} go install github.com/pav5000/smartimports/cmd/smartimports@latest && \
-		mv ${BINDIR}/smartimports ${SMARTIMPORTS})
+			mv ${BINDIR}/smartimports ${SMARTIMPORTS})
 
 logs:
 	mkdir -p data/.logs

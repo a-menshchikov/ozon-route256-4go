@@ -1,3 +1,5 @@
+//go:build unit
+
 package model
 
 import (
@@ -269,7 +271,7 @@ func Test_controller_ListLimits(t *testing.T) {
 			rater: func(m *mocks.MockRater) {
 				m.EXPECT().TryAcquireExchange().Return(true)
 				m.EXPECT().ReleaseExchange()
-				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(2000000), "USD", "RUB", test.Today).Return(int64(10000000), nil)
+				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(2000000), "USD", "RUB", test.Today).Return(int64(1000000), nil)
 				m.EXPECT().Exchange(gomock.AssignableToTypeOf(test.CtxInterface), int64(1500000), "USD", "RUB", test.Today).Return(int64(0), test.SimpleError)
 			},
 		})

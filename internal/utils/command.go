@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/uber/jaeger-client-go/config"
 	"go.uber.org/zap"
@@ -33,7 +34,7 @@ func NewLogger(logLevel string, developerMode bool) (*zap.Logger, error) {
 	return logger, nil
 }
 
-func InitTracing(serviceName string) error {
+func InitTracing(serviceName string) (io.Closer, error) {
 	cfg := config.Configuration{
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
@@ -41,6 +42,5 @@ func InitTracing(serviceName string) error {
 		},
 	}
 
-	_, err := cfg.InitGlobalTracer(serviceName)
-	return err
+	return cfg.InitGlobalTracer(serviceName)
 }

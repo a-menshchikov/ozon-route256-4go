@@ -4,21 +4,21 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgtype/pgxtype"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type pgExpenseStorage struct {
-	db pgxtype.Querier
+	pool *pgxpool.Pool
 }
 
 func (s *pgExpenseStorage) Add(ctx context.Context, user *types.User, item types.ExpenseItem, category string) error {
 	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseStorage.Add")
 	defer span.Finish()
 
-	_, err := s.db.Exec(
+	_, err := s.pool.Exec(
 		ctx,
 		`insert into expenses (user_id, date, amount, currency_code, category)
          values ($1, $2, $3, $4, $5)`,
@@ -39,7 +39,7 @@ func (s *pgExpenseStorage) List(ctx context.Context, user *types.User, from time
 	span, _ := opentracing.StartSpanFromContext(ctx, "pgExpenseStorage.List")
 	defer span.Finish()
 
-	rows, err := s.db.Query(
+	rows, err := s.pool.Query(
 		ctx,
 		`select category, date, amount, currency_code
          from expenses

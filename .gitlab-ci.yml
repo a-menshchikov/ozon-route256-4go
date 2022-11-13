@@ -14,7 +14,7 @@ build:
 test:
   stage: test
   script:
-    - make test
+    - make test-unit
 
 lint:
   stage: test

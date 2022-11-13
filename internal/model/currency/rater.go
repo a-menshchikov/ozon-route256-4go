@@ -21,7 +21,7 @@ type gateway interface {
 }
 
 type rater struct {
-	mu sync.RWMutex
+	mu *sync.RWMutex
 
 	ready           bool
 	refreshInterval time.Duration
@@ -34,6 +34,8 @@ type rater struct {
 
 func NewRater(currencyCfg config.CurrencyConfig, s storage.CurrencyRatesStorage, g gateway, l *zap.Logger) *rater {
 	return &rater{
+		mu: new(sync.RWMutex),
+
 		refreshInterval: currencyCfg.RefreshInterval,
 		baseCurrency:    currencyCfg.Base,
 

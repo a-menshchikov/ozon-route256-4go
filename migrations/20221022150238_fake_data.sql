@@ -14,13 +14,11 @@ $$
                (102, user_2);
 
         insert into currencies (user_id, code)
-        select unnest(array [user_1, user_2]),
-               unnest(array ['RUB', 'USD']);
+        select unnest(array [user_2]),
+               unnest(array ['USD']);
 
         insert into limits (user_id, category, total, remains, currency_code)
-        select user_1, unnest(array ['', 'taxi']), unnest(array [25000000, 10000000]), unnest(array [20000000, 700000]), unnest(array ['RUB', 'USD'])
-        union
-        select user_2, 'coffee', 150000, 70000, 'USD';
+        select user_1, unnest(array ['', 'taxi']), unnest(array [25000000, 1000000]), unnest(array [20000000, 700000]), unnest(array ['RUB', 'USD']);
 
         insert into rates (code, date, rate)
         select 'USD', generate_series('2022-10-19'::timestamp, '2022-10-21'::timestamp, '1 day'), unnest(array [550000, 525000, 500000])
@@ -37,7 +35,6 @@ $$
                (user_2, '2022-10-21', 30000, 'USD', 'coffee');
     end
 $$ language plpgsql;
-
 -- +goose StatementEnd
 
 -- +goose Down

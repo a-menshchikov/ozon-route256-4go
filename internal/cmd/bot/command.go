@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,7 @@ import (
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache/redis"
 	tgclient "gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/telegram"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/ctxkey"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/metrics"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency"
@@ -32,9 +34,9 @@ type (
 	storageFactory interface {
 		CreateTelegramUserStorage() storage.TelegramUserStorage
 		CreateExpenseStorage() storage.ExpenseStorage
-		CreateLimitStorage() storage.ExpenseLimitStorage
+		CreateExpenseLimitStorage() storage.ExpenseLimitStorage
 		CreateCurrencyStorage() storage.CurrencyStorage
-		CreateRatesStorage() storage.CurrencyRatesStorage
+		CreateCurrencyRatesStorage() storage.CurrencyRatesStorage
 	}
 
 	client interface {
@@ -60,29 +62,43 @@ func NewCommand(name, version string) *cobra.Command {
 		SilenceErrors: true,
 		Version:       version,
 
-		RunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			logger, err := utils.NewLogger(logLevel, logDevel)
 			if err != nil {
 				return errors.Wrap(err, "logger init failed")
 			}
 
-			if err := utils.InitTracing(serviceName); err != nil {
+			cmd.SetContext(context.WithValue(cmd.Context(), ctxkey.Logger, logger))
+			return nil
+		},
+
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			logger := ctx.Value(ctxkey.Logger).(*zap.Logger)
+
+			closer, err := utils.InitTracing(serviceName)
+			if err != nil {
 				return errors.Wrap(err, "tracer init failed")
 			}
+			defer func(c io.Closer, l *zap.Logger) {
+				if err := c.Close(); err != nil {
+					l.Error("cannot close tracer", zap.Error(err))
+				}
+			}(closer, logger)
 
 			cfg, err := config.NewConfig(configPath)
 			if err != nil {
 				return errors.Wrap(err, "config init failed")
 			}
 
-			g, ctx := errgroup.WithContext(cmd.Context())
+			g, ctx := errgroup.WithContext(ctx)
 
-			storageFactory, err := newStorageFactory(ctx, cfg.Storage, logger)
+			factory, err := newStorageFactory(ctx, cfg.Storage, logger)
 			if err != nil {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
-			ratesStorage := storageFactory.CreateRatesStorage()
+			ratesStorage := factory.CreateCurrencyRatesStorage()
 			if cfg.Cache.Rates.Driver != "" {
 				if ratesStorage, err = newCurrencyRatesCache(ratesStorage, cfg.Cache.Rates, logger); err != nil {
 					logger.Error("rates cache init failed", zap.Error(err))
@@ -115,7 +131,7 @@ func NewCommand(name, version string) *cobra.Command {
 			defer reportsProducer.Close()
 
 			var (
-				expenser model.Expenser = expense.NewExpenser(storageFactory.CreateExpenseStorage())
+				expenser model.Expenser = expense.NewExpenser(factory.CreateExpenseStorage())
 				reporter model.Reporter = expense.NewReporter(cfg.Reports.Kafka.Timeout, reportsProducer, reportsListener, logger)
 			)
 			if cfg.Cache.Reporter.Driver != "" {
@@ -124,13 +140,13 @@ func NewCommand(name, version string) *cobra.Command {
 				}
 			}
 
-			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, storageFactory.CreateTelegramUserStorage(), logger)
+			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, factory.CreateTelegramUserStorage(), logger)
 			if err != nil {
 				return errors.Wrap(err, "telegram client init failed")
 			}
 
-			limiter := expense.NewLimiter(storageFactory.CreateLimitStorage())
-			currencyManager := currency.NewCurrencyManager(cfg.Currency, storageFactory.CreateCurrencyStorage())
+			limiter := expense.NewLimiter(factory.CreateExpenseLimitStorage())
+			currencyManager := currency.NewCurrencyManager(cfg.Currency, factory.CreateCurrencyStorage())
 			finAssist := model.NewController(expenser, reporter, limiter, currencyManager, rater, logger)
 
 			tgClient.RegisterController(finAssist)

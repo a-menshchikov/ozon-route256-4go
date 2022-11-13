@@ -117,8 +117,8 @@ func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	}()
 
 	if command == "currency" {
-		text, keyboard := c.handleCurrency(ctx, user)
-		c.sendMessageWithInlineKeyboard(message.From.ID, text, keyboard)
+		currText, keyboard := c.handleCurrency(ctx, user)
+		c.sendMessageWithInlineKeyboard(message.From.ID, currText, keyboard)
 		return
 	}
 

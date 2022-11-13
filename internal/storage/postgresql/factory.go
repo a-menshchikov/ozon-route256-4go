@@ -5,7 +5,6 @@ import (
 	"database/sql/driver"
 	"time"
 
-	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
@@ -17,7 +16,7 @@ const (
 )
 
 type factory struct {
-	db pgxtype.Querier
+	pool *pgxpool.Pool
 }
 
 func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logger *zap.Logger) (*factory, error) {
@@ -39,7 +38,7 @@ func NewFactory(ctx context.Context, dsn string, waitTimeout time.Duration, logg
 	prometheus.MustRegister(newExporter(pool, pool.Config().ConnConfig.Database))
 
 	return &factory{
-		db: pool,
+		pool: pool,
 	}, nil
 }
 
@@ -81,30 +80,30 @@ func ping(ctx context.Context, conn driver.Pinger, logger *zap.Logger) error {
 
 func (f *factory) CreateTelegramUserStorage() storage.TelegramUserStorage {
 	return &pgTelegramUserStorage{
-		db: f.db,
+		pool: f.pool,
 	}
 }
 
 func (f *factory) CreateExpenseStorage() storage.ExpenseStorage {
 	return &pgExpenseStorage{
-		db: f.db,
+		pool: f.pool,
 	}
 }
 
 func (f *factory) CreateCurrencyStorage() storage.CurrencyStorage {
 	return &pgCurrencyStorage{
-		db: f.db,
+		pool: f.pool,
 	}
 }
 
-func (f *factory) CreateRatesStorage() storage.CurrencyRatesStorage {
+func (f *factory) CreateCurrencyRatesStorage() storage.CurrencyRatesStorage {
 	return &pgCurrencyRatesStorage{
-		db: f.db,
+		pool: f.pool,
 	}
 }
 
-func (f *factory) CreateLimitStorage() storage.ExpenseLimitStorage {
+func (f *factory) CreateExpenseLimitStorage() storage.ExpenseLimitStorage {
 	return &pgExpenseLimitStorage{
-		db: f.db,
+		pool: f.pool,
 	}
 }
