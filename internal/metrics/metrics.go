@@ -64,11 +64,3 @@ func (s *Server) Run(ctx context.Context) error {
 
 	return nil
 }
-
-func ResultLabel(err error) string {
-	if err != nil {
-		return "error"
-	}
-
-	return "ok"
-}

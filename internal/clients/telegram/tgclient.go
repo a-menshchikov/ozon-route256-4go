@@ -73,7 +73,7 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = _updateTimeout
 
-	c.logger.Info("listening for messages")
+	c.logger.Info("listen for messages")
 
 	updates := c.api.GetUpdatesChan(u)
 
@@ -84,9 +84,9 @@ func (c *client) ListenUpdates(ctx context.Context) error {
 
 		case update := <-updates:
 			if update.Message != nil {
-				c.handleMessage(ctx, update.Message)
+				go c.handleMessage(ctx, update.Message)
 			} else if update.CallbackQuery != nil {
-				c.handleCallback(ctx, update.CallbackQuery)
+				go c.handleCallback(ctx, update.CallbackQuery)
 			}
 		}
 	}
@@ -117,8 +117,8 @@ func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 	}()
 
 	if command == "currency" {
-		text, keyboard := c.handleCurrency(ctx, user)
-		c.sendMessageWithInlineKeyboard(message.From.ID, text, keyboard)
+		currText, keyboard := c.handleCurrency(ctx, user)
+		c.sendMessageWithInlineKeyboard(message.From.ID, currText, keyboard)
 		return
 	}
 
@@ -363,7 +363,7 @@ func (c *client) handleReport(ctx context.Context, user *types.User, args string
 		return currencyLaterMessage
 
 	case !resp.Success:
-		return emergencyMessage
+		return reportRetry
 
 	case len(resp.Data) == 0:
 		return reportNoExpenses

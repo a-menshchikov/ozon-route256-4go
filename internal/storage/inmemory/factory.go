@@ -23,7 +23,7 @@ func (f *factory) CreateExpenseStorage() storage.ExpenseStorage {
 	}
 }
 
-func (f *factory) CreateLimitStorage() storage.ExpenseLimitStorage {
+func (f *factory) CreateExpenseLimitStorage() storage.ExpenseLimitStorage {
 	return &inMemoryExpenseLimitStorage{
 		data: make(map[*types.User]map[string]types.LimitItem),
 	}
@@ -35,7 +35,7 @@ func (f *factory) CreateCurrencyStorage() storage.CurrencyStorage {
 	}
 }
 
-func (f *factory) CreateRatesStorage() storage.CurrencyRatesStorage {
+func (f *factory) CreateCurrencyRatesStorage() storage.CurrencyRatesStorage {
 	return &inMemoryCurrencyRatesStorage{
 		data: make(map[string]int64),
 	}

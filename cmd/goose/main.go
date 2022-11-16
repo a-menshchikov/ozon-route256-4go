@@ -11,19 +11,19 @@ import (
 
 var (
 	flags = flag.NewFlagSet("goose", flag.ExitOnError)
-	dir   = flags.String("dir", ".", "directory with migration files")
+	dir   = flags.String("dir", "./migrations", "directory with migration files")
 )
 
 func main() {
 	_ = flags.Parse(os.Args[1:])
 	args := flags.Args()
 
-	if len(args) < 3 {
+	if len(args) < 2 {
 		flags.Usage()
 		return
 	}
 
-	dbstring, command := args[1], args[2]
+	dbstring, command := args[0], args[1]
 
 	db, err := goose.OpenDBWithDriver("postgres", dbstring)
 	if err != nil {
@@ -36,9 +36,9 @@ func main() {
 		}
 	}()
 
-	arguments := make([]string, len(args)-3)
-	if len(args) > 3 {
-		arguments = append(arguments, args[3:]...)
+	arguments := make([]string, len(args)-2)
+	if len(args) > 2 {
+		arguments = append(arguments, args[2:]...)
 	}
 
 	if err := goose.Run(command, db, *dir, arguments...); err != nil {

@@ -3,15 +3,15 @@ package postgresql
 import (
 	"context"
 
-	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/types"
 )
 
 type pgCurrencyStorage struct {
-	db pgxtype.Querier
+	pool *pgxpool.Pool
 }
 
 func (s *pgCurrencyStorage) Get(ctx context.Context, user *types.User) (string, bool, error) {
@@ -20,7 +20,7 @@ func (s *pgCurrencyStorage) Get(ctx context.Context, user *types.User) (string, 
 
 	var value string
 
-	err := s.db.QueryRow(
+	err := s.pool.QueryRow(
 		ctx,
 		`select code
          from currencies
@@ -40,7 +40,7 @@ func (s *pgCurrencyStorage) Set(ctx context.Context, user *types.User, value str
 	span, _ := opentracing.StartSpanFromContext(ctx, "pgCurrencyStorage.Set")
 	defer span.Finish()
 
-	_, err := s.db.Exec(
+	_, err := s.pool.Exec(
 		ctx,
 		`insert into currencies (user_id, code)
          values ($1, $2)

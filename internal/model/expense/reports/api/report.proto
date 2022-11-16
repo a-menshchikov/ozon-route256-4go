@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package report;
+option go_package = "gitlab.ozon.dev/almenshchikov/go-course-4/internal/model/expense/reports/api";
+
+import "google/protobuf/empty.proto";
+import "validate/validate.proto";
+
+service Reporter {
+	rpc SendReport (Report) returns (google.protobuf.Empty);
+}
+
+message Report {
+	User user = 1 [(validate.rules).message.required = true];
+	map<string, int64> data = 2;
+	bool success = 3;
+	string error = 4 [(validate.rules).string = {
+		ignore_empty: true,
+		min_len: 1
+	}];
+}
+
+message User {
+	int64 id = 1 [(validate.rules).int64.gt = 0];
+}

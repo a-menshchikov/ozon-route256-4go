@@ -2,26 +2,25 @@ package bot
 
 import (
 	"context"
-	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	jaegierconfig "github.com/uber/jaeger-client-go/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/cache/redis"
 	tgclient "gitlab.ozon.dev/almenschhikov/go-course-4/internal/clients/telegram"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/config"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency/rates"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/currency/rates/cbr"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense"
-	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/expense/limit"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/ctxkey"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/metrics"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/currency/cbr"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/expense"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/model/expense/reports"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/inmemory"
 	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/storage/postgresql"
+	"gitlab.ozon.dev/almenschhikov/go-course-4/internal/utils"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/sync/errgroup"
@@ -35,9 +34,9 @@ type (
 	storageFactory interface {
 		CreateTelegramUserStorage() storage.TelegramUserStorage
 		CreateExpenseStorage() storage.ExpenseStorage
-		CreateLimitStorage() storage.ExpenseLimitStorage
+		CreateExpenseLimitStorage() storage.ExpenseLimitStorage
 		CreateCurrencyStorage() storage.CurrencyStorage
-		CreateRatesStorage() storage.CurrencyRatesStorage
+		CreateCurrencyRatesStorage() storage.CurrencyRatesStorage
 	}
 
 	client interface {
@@ -63,60 +62,97 @@ func NewCommand(name, version string) *cobra.Command {
 		SilenceErrors: true,
 		Version:       version,
 
-		RunE: func(cmd *cobra.Command, args []string) error {
-			logger, err := newLogger(logLevel, logDevel)
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			logger, err := utils.NewLogger(logLevel, logDevel)
 			if err != nil {
 				return errors.Wrap(err, "logger init failed")
 			}
 
-			if err := initTracing(serviceName); err != nil {
+			cmd.SetContext(context.WithValue(cmd.Context(), ctxkey.Logger, logger))
+			return nil
+		},
+
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			logger := ctx.Value(ctxkey.Logger).(*zap.Logger)
+
+			closer, err := utils.InitTracing(serviceName)
+			if err != nil {
 				return errors.Wrap(err, "tracer init failed")
 			}
+			defer func(c io.Closer, l *zap.Logger) {
+				if err := c.Close(); err != nil {
+					l.Error("cannot close tracer", zap.Error(err))
+				}
+			}(closer, logger)
 
-			cfg, err := config.New(configPath)
+			cfg, err := config.NewConfig(configPath)
 			if err != nil {
 				return errors.Wrap(err, "config init failed")
 			}
 
-			g, ctx := errgroup.WithContext(cmd.Context())
+			g, ctx := errgroup.WithContext(ctx)
 
-			storageFactory, err := newStorageFactory(ctx, cfg.Storage, logger)
+			factory, err := newStorageFactory(ctx, cfg.Storage, logger)
 			if err != nil {
 				return errors.Wrap(err, "storage factory init failed")
 			}
 
-			ratesCache, err := newCache(ctx, cfg.Cache.Rates, logger)
-			if err != nil {
-				return errors.Wrap(err, "report cache init failed")
-			}
-
-			reportCache, err := newCache(ctx, cfg.Cache.Report, logger)
-			if err != nil {
-				return errors.Wrap(err, "report cache init failed")
+			ratesStorage := factory.CreateCurrencyRatesStorage()
+			if cfg.Cache.Rates.Driver != "" {
+				if ratesStorage, err = newCurrencyRatesCache(ratesStorage, cfg.Cache.Rates, logger); err != nil {
+					logger.Error("rates cache init failed", zap.Error(err))
+				}
 			}
 
 			metricsServer := metrics.NewServer(uint16(metricsPort), logger)
-			rater := rates.NewRater(cfg.Currency, storageFactory.CreateRatesStorage(), ratesCache, cbr.NewGateway(http.DefaultClient), logger)
+			g.Go(func() error {
+				return metricsServer.Run(ctx)
+			})
 
-			g.Go(func() error { return metricsServer.Run(ctx) })
-			g.Go(func() error { return rater.Run(ctx) })
+			cbrGateway := cbr.NewCbrGateway(http.DefaultClient)
+			rater := currency.NewRater(cfg.Currency, ratesStorage, cbrGateway, logger)
+			g.Go(func() error {
+				return rater.Run(ctx)
+			})
 
-			finAssist := model.NewController(
-				expense.NewExpenser(storageFactory.CreateExpenseStorage()),
-				limit.NewLimiter(storageFactory.CreateLimitStorage()),
-				currency.NewManager(cfg.Currency, storageFactory.CreateCurrencyStorage()),
-				reportCache,
-				rater,
-				logger,
+			reportsListener, err := reports.NewListener(cfg.Reports.Grpc, logger)
+			if err != nil {
+				return errors.Wrap(err, "reports listener init failed")
+			}
+			defer reportsListener.Close()
+
+			reportsListener.Run()
+
+			reportsProducer, err := reports.NewProducer(cfg.Reports.Kafka, logger)
+			if err != nil {
+				return errors.Wrap(err, "reports message producer init failed")
+			}
+			defer reportsProducer.Close()
+
+			var (
+				expenser model.Expenser = expense.NewExpenser(factory.CreateExpenseStorage())
+				reporter model.Reporter = expense.NewReporter(cfg.Reports.Kafka.Timeout, reportsProducer, reportsListener, logger)
 			)
+			if cfg.Cache.Reporter.Driver != "" {
+				if expenser, reporter, err = newReportCache(expenser, reporter, cfg.Cache.Reporter, logger); err != nil {
+					logger.Error("reports cache init failed", zap.Error(err))
+				}
+			}
 
-			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, storageFactory.CreateTelegramUserStorage(), logger)
+			tgClient, err := newTelegramClient(cfg.Client.Telegram.Token, factory.CreateTelegramUserStorage(), logger)
 			if err != nil {
 				return errors.Wrap(err, "telegram client init failed")
 			}
 
+			limiter := expense.NewLimiter(factory.CreateExpenseLimitStorage())
+			currencyManager := currency.NewCurrencyManager(cfg.Currency, factory.CreateCurrencyStorage())
+			finAssist := model.NewController(expenser, reporter, limiter, currencyManager, rater, logger)
+
 			tgClient.RegisterController(finAssist)
-			g.Go(func() error { return tgClient.ListenUpdates(ctx) })
+			g.Go(func() error {
+				return tgClient.ListenUpdates(ctx)
+			})
 
 			if err := g.Wait(); err != nil {
 				return err
@@ -130,48 +166,11 @@ func NewCommand(name, version string) *cobra.Command {
 	c.PersistentFlags().StringVar(&logLevel, "log-level", zapcore.InfoLevel.String(), "debug | info | warn | error | dpanic | panic | fatal")
 	c.PersistentFlags().BoolVar(&logDevel, "log-devel", false, "use development logging")
 	c.PersistentFlags().IntVar(&metricsPort, "metrics-port", _defaultMetricsPort, "http port for metrics collecting")
-	c.PersistentFlags().StringVar(&serviceName, "service", "finassist", "service name for tracing")
+	c.PersistentFlags().StringVar(&serviceName, "service", "finassist_bot", "service name for tracing")
 
 	_ = c.MarkFlagRequired("config")
 
 	return c
-}
-
-func newLogger(logLevel string, developerMode bool) (*zap.Logger, error) {
-	var level zapcore.Level
-	err := level.UnmarshalText([]byte(logLevel))
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg zap.Config
-	if developerMode {
-		cfg = zap.NewDevelopmentConfig()
-	} else {
-		cfg = zap.NewProductionConfig()
-		cfg.DisableCaller = true
-		cfg.DisableStacktrace = true
-	}
-	cfg.Level = zap.NewAtomicLevelAt(level)
-
-	logger, err := cfg.Build()
-	if err != nil {
-		return nil, fmt.Errorf("build logger: %w", err)
-	}
-
-	return logger, nil
-}
-
-func initTracing(serviceName string) error {
-	cfg := jaegierconfig.Configuration{
-		Sampler: &jaegierconfig.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-	}
-
-	_, err := cfg.InitGlobalTracer(serviceName)
-	return err
 }
 
 func newStorageFactory(ctx context.Context, cfg config.StorageConfig, logger *zap.Logger) (storageFactory, error) {
@@ -186,16 +185,23 @@ func newStorageFactory(ctx context.Context, cfg config.StorageConfig, logger *za
 	return nil, errors.New("unknown storage driver")
 }
 
-func newCache(ctx context.Context, cfg config.CacheSectionConfig, logger *zap.Logger) (cache.Cache, error) {
+func newCurrencyRatesCache(storage storage.CurrencyRatesStorage, cfg config.CacheSectionConfig, logger *zap.Logger) (storage.CurrencyRatesStorage, error) {
 	switch cfg.Driver {
 	case config.RedisDriver:
-		return redis.NewCache(ctx, cfg.Dsn, logger)
-
-	case "":
-		return nil, nil
+		return redis.NewCurrencyRatesCache(storage, cfg.Dsn, logger)
 	}
 
-	return nil, errors.New("unknown cache driver")
+	return storage, errors.New("unknown rates cache driver")
+}
+
+func newReportCache(expenser model.Expenser, reporter model.Reporter, cfg config.CacheSectionConfig, logger *zap.Logger) (model.Expenser, model.Reporter, error) {
+	switch cfg.Driver {
+	case config.RedisDriver:
+		cache, err := redis.NewReportCache(expenser, reporter, cfg.Dsn, logger)
+		return cache, cache, err
+	}
+
+	return expenser, reporter, errors.New("unknown report cache driver")
 }
 
 func newTelegramClient(token string, s storage.TelegramUserStorage, l *zap.Logger) (client, error) {

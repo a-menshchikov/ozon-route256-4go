@@ -7,35 +7,49 @@ create table users
 
 create table tg_users
 (
-  id      int primary key,
-  user_id int references users
+  id      int,
+  user_id int not null,
+
+  primary key (id),
+  foreign key (user_id) references users
+    on delete cascade
 );
 
 create table expenses
 (
-  id            serial primary key,
-  user_id       int references users,
+  id            serial,
+  user_id       int        not null,
   date          date       not null,
   amount        bigint     not null,
   currency_code varchar(3) not null,
-  category      text       not null
+  category      text       not null,
+
+  primary key (id),
+  foreign key (user_id) references users
+    on delete cascade
 );
 
 create table currencies
 (
-  user_id int references users primary key,
-  code    varchar(3) not null
+  user_id int,
+  code    varchar(3) not null,
+
+  primary key (user_id),
+  foreign key (user_id) references users
+    on delete cascade
 );
 
 create table limits
 (
-  user_id       int references users,
+  user_id       int,
   category      text,
   total         bigint     not null,
   remains       bigint     not null,
   currency_code varchar(3) not null,
 
-  primary key (user_id, category)
+  primary key (user_id, category),
+  foreign key (user_id) references users
+    on delete cascade
 );
 
 create table rates
