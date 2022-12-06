@@ -45,7 +45,11 @@ func setupGateway(t *testing.T, i mocksInitializer) *cbrGateway {
 }
 
 func Test_gateway_FetchRates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("invalid url", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		g := setupGateway(t, mocksInitializer{})
 		g.url = string(rune(0x7f))
@@ -60,6 +64,8 @@ func Test_gateway_FetchRates(t *testing.T) {
 	})
 
 	t.Run("client error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		g := setupGateway(t, mocksInitializer{
 			client: func(m *mocks.MockhttpClient) {
@@ -78,6 +84,8 @@ func Test_gateway_FetchRates(t *testing.T) {
 	})
 
 	t.Run("decode error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		g := setupGateway(t, mocksInitializer{
 			client: func(m *mocks.MockhttpClient) {
@@ -100,6 +108,8 @@ func Test_gateway_FetchRates(t *testing.T) {
 	})
 
 	t.Run("invalid date", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		g := setupGateway(t, mocksInitializer{
 			client: func(m *mocks.MockhttpClient) {
@@ -123,6 +133,8 @@ func Test_gateway_FetchRates(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		g := setupGateway(t, mocksInitializer{
 			client: func(m *mocks.MockhttpClient) {

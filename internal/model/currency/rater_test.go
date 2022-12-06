@@ -38,7 +38,11 @@ func setupRater(t *testing.T, cfg config.CurrencyConfig, i raterMocksInitializer
 }
 
 func Test_rater_Run(t *testing.T) {
+	t.Parallel()
+
 	t.Run("refresh once and check lock", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -75,6 +79,8 @@ func Test_rater_Run(t *testing.T) {
 	})
 
 	t.Run("refresh twice with errors", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -105,7 +111,11 @@ func Test_rater_Run(t *testing.T) {
 }
 
 func Test_rater_Exchange(t *testing.T) {
+	t.Parallel()
+
 	t.Run("equal currencies", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{})
 
@@ -124,6 +134,8 @@ func Test_rater_Exchange(t *testing.T) {
 	})
 
 	t.Run("RUB to USD base storage error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
@@ -146,6 +158,8 @@ func Test_rater_Exchange(t *testing.T) {
 	})
 
 	t.Run("RUB to USD base no rates", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
@@ -168,6 +182,8 @@ func Test_rater_Exchange(t *testing.T) {
 	})
 
 	t.Run("RUB to EUR target storage error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
@@ -190,6 +206,8 @@ func Test_rater_Exchange(t *testing.T) {
 	})
 
 	t.Run("RUB to EUR target no rates", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {
@@ -213,6 +231,8 @@ func Test_rater_Exchange(t *testing.T) {
 	})
 
 	t.Run("RUB to USD success", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		r := setupRater(t, test.DefaultCurrencyCfg, raterMocksInitializer{
 			storage: func(m *smocks.MockCurrencyRatesStorage) {

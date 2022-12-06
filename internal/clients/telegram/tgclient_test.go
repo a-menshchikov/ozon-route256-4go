@@ -78,6 +78,8 @@ func setupClient(t *testing.T, i clientMocksInitializer) (*client, context.Conte
 }
 
 func Test_client_ListenUpdates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no controller", func(t *testing.T) {
 		t.Parallel()
 

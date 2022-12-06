@@ -29,7 +29,11 @@ func setupCurrencyManager(t *testing.T, cfg config.CurrencyConfig, i currencyMan
 }
 
 func Test_manager_Get(t *testing.T) {
+	t.Parallel()
+
 	t.Run("error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
@@ -46,6 +50,8 @@ func Test_manager_Get(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
@@ -62,6 +68,8 @@ func Test_manager_Get(t *testing.T) {
 	})
 
 	t.Run("default", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
@@ -79,7 +87,11 @@ func Test_manager_Get(t *testing.T) {
 }
 
 func Test_manager_Set(t *testing.T) {
+	t.Parallel()
+
 	t.Run("unknown", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{})
 
@@ -91,6 +103,8 @@ func Test_manager_Set(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
@@ -106,6 +120,8 @@ func Test_manager_Set(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {
@@ -122,7 +138,11 @@ func Test_manager_Set(t *testing.T) {
 }
 
 func Test_manager_ListCurrenciesCodesWithFlags(t *testing.T) {
+	t.Parallel()
+
 	t.Run("list", func(t *testing.T) {
+		t.Parallel()
+
 		// ARRANGE
 		m := setupCurrencyManager(t, test.DefaultCurrencyCfg, currencyManagerMocksInitializer{
 			storage: func(m *mocks.MockCurrencyStorage) {},

@@ -56,6 +56,8 @@ func setupController(t *testing.T, i controllerMocksInitializer) *controller {
 }
 
 func Test_controller_ListCurrencies(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no currency", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,6 +102,8 @@ func Test_controller_ListCurrencies(t *testing.T) {
 }
 
 func Test_controller_SetCurrency(t *testing.T) {
+	t.Parallel()
+
 	t.Run("failed", func(t *testing.T) {
 		t.Parallel()
 
@@ -142,6 +146,8 @@ func Test_controller_SetCurrency(t *testing.T) {
 }
 
 func Test_controller_ListLimits(t *testing.T) {
+	t.Parallel()
+
 	t.Run("not ready", func(t *testing.T) {
 		t.Parallel()
 
@@ -355,6 +361,8 @@ func Test_controller_ListLimits(t *testing.T) {
 }
 
 func Test_controller_SetLimit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no currency", func(t *testing.T) {
 		t.Parallel()
 
@@ -474,6 +482,8 @@ func Test_controller_SetLimit(t *testing.T) {
 }
 
 func Test_controller_AddExpense(t *testing.T) {
+	t.Parallel()
+
 	t.Run("not ready", func(t *testing.T) {
 		t.Parallel()
 
@@ -794,6 +804,8 @@ func Test_controller_AddExpense(t *testing.T) {
 }
 
 func Test_controller_GetReport(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no currency", func(t *testing.T) {
 		t.Parallel()
 
