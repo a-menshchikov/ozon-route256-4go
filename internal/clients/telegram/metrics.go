@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	_commandResponseTime = promauto.NewHistogramVec(
+	commandResponseTime = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "finassist",
 			Subsystem: "telegram",
@@ -19,7 +19,7 @@ var (
 		},
 	)
 
-	_commandCount = promauto.NewCounterVec(
+	commandCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "finassis",
 			Subsystem: "telegram",

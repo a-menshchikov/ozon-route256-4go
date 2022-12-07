@@ -79,7 +79,7 @@ func (p *producer) Send(ctx context.Context, user *types.User, from time.Time, c
 		return errors.Wrap(err, "failed to send report message to kafka")
 	}
 
-	_producedCount.WithLabelValues(currency).Inc()
+	producedCount.WithLabelValues(currency).Inc()
 
 	return nil
 }

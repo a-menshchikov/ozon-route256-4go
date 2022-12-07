@@ -142,9 +142,9 @@ func (c *consumer) handleMessage(ctx context.Context, saramaMessage *sarama.Cons
 	defer func() {
 		c.sendReport(ctx, report)
 		if report.Success {
-			_consumedCount.WithLabelValues("ok").Inc()
+			consumedCount.WithLabelValues("ok").Inc()
 		} else {
-			_consumedCount.WithLabelValues("error").Inc()
+			consumedCount.WithLabelValues("error").Inc()
 		}
 	}()
 

@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	_producedCount = promauto.NewCounterVec(
+	producedCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "finassis",
 			Subsystem: "reporter",
@@ -22,7 +22,7 @@ var (
 		},
 	)
 
-	_consumedCount = promauto.NewCounterVec(
+	consumedCount = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "finassis",
 			Subsystem: "reporter",
@@ -34,7 +34,7 @@ var (
 		},
 	)
 
-	_consumeTime = promauto.NewHistogramVec(
+	consumeTime = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "finassis",
 			Subsystem: "reporter",
@@ -50,7 +50,9 @@ var (
 
 func metricsInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	start := time.Now()
-	defer _consumeTime.WithLabelValues(info.FullMethod).Observe(time.Since(start).Seconds())
+	defer consumeTime.WithLabelValues(
+		info.FullMethod, // method
+	).Observe(time.Since(start).Seconds())
 
 	return handler(ctx, req)
 }

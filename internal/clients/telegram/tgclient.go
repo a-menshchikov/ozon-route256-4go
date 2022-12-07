@@ -112,8 +112,8 @@ func (c *client) handleMessage(ctx context.Context, message *tgbotapi.Message) {
 		span.SetTag("command", command)
 		span.Finish()
 
-		_commandResponseTime.WithLabelValues(command).Observe(time.Since(start).Seconds())
-		_commandCount.WithLabelValues(command).Inc()
+		commandResponseTime.WithLabelValues(command).Observe(time.Since(start).Seconds())
+		commandCount.WithLabelValues(command).Inc()
 	}()
 
 	if command == "currency" {
@@ -155,8 +155,8 @@ func (c *client) handleCallback(ctx context.Context, callbackQuery *tgbotapi.Cal
 
 	start := time.Now()
 	defer func() {
-		_commandResponseTime.WithLabelValues("set-currency").Observe(time.Since(start).Seconds())
-		_commandCount.WithLabelValues("set-currency").Inc()
+		commandResponseTime.WithLabelValues("set-currency").Observe(time.Since(start).Seconds())
+		commandCount.WithLabelValues("set-currency").Inc()
 	}()
 
 	text, ok := c.handleCurrencyCallback(ctx, user, callbackQuery.Data)
